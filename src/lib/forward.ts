@@ -56,10 +56,19 @@ const STRIP_HEADERS = new Set([
   "x-invoke-output",
 ]);
 
-export function buildTargetUrl(base: string, req: WebhookRequest): string {
+export interface DeliverOptions {
+  /** Append the request's sub-path to the target (endpoint-level forwarding). Routes pass false. */
+  appendPath?: boolean;
+  /** Extra headers to add (route-level forwarding). */
+  extraHeaders?: Record<string, string>;
+  /** Which route triggered this delivery, for bookkeeping. */
+  routeId?: string | null;
+}
+
+export function buildTargetUrl(base: string, req: WebhookRequest, appendPath = true): string {
   const url = new URL(base);
   // Preserve the sub-path below the endpoint slug, appended to the target path.
-  if (req.path) {
+  if (appendPath && req.path) {
     url.pathname = url.pathname.replace(/\/$/, "") + "/" + req.path.replace(/^\//, "");
   }
   // Merge original query params (target's own params win on conflict).
@@ -86,18 +95,21 @@ export async function deliver(
   req: WebhookRequest,
   targetUrl: string,
   kind: Delivery["kind"],
+  opts: DeliverOptions = {},
 ): Promise<Delivery> {
   const headers = new Headers();
   for (const [k, v] of Object.entries(req.headers)) {
     if (STRIP_HEADERS.has(k.toLowerCase())) continue;
     headers.set(k, v);
   }
+  for (const [k, v] of Object.entries(opts.extraHeaders ?? {})) headers.set(k, v);
   headers.set("x-laterhook-request-id", req.id);
   headers.set("x-laterhook-endpoint", req.endpoint_slug);
   headers.set("x-laterhook-delivery", kind);
   headers.set("x-laterhook-received-at", req.received_at);
+  if (opts.routeId) headers.set("x-laterhook-route", opts.routeId);
 
-  const url = buildTargetUrl(targetUrl, req);
+  const url = buildTargetUrl(targetUrl, req, opts.appendPath ?? true);
   const method = req.method.toUpperCase();
   const body = method === "GET" || method === "HEAD" ? undefined : decodeBody(req);
   const controller = new AbortController();

@@ -17,7 +17,9 @@ import { LocalTime, TimeAgo } from "@/components/time-ago";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatBytes, formatDuration, shortContentType, toCurl } from "@/lib/format";
 import { flagEmoji, ipLookupEnabled, lookupIp } from "@/lib/ipinfo";
-import { getEndpointById, getRequest, listDeliveries, listTags, updateRequest } from "@/lib/repo";
+import { getEndpointById, getRequest, getRoute, listDeliveries, listTags, updateRequest } from "@/lib/repo";
+import { Button } from "@/components/ui/button";
+import { expandTarget, rematch } from "@/lib/routes";
 import { IpPanel } from "@/components/ip-panel";
 
 export async function generateMetadata(props: PageProps<"/r/[id]">): Promise<Metadata> {
@@ -33,7 +35,15 @@ export default async function RequestPage(props: PageProps<"/r/[id]">) {
   const request = await getRequest(id);
   if (!request) notFound();
   // lookupIp is cached per IP; the network call only happens the first time an address is seen.
-  const [endpoint, deliveries, tags, ipInfo] = await Promise.all([getEndpointById(request.endpoint_id), listDeliveries(request.id), listTags(), lookupIp(request.ip)]);
+  const [endpoint, deliveries, tags, ipInfo, route] = await Promise.all([
+    getEndpointById(request.endpoint_id),
+    listDeliveries(request.id),
+    listTags(),
+    lookupIp(request.ip),
+    request.route_id ? getRoute(request.route_id) : Promise.resolve(null),
+  ]);
+  const routeMatch = route ? rematch(route, request) : null;
+  const defaultTarget = route?.forward_url ? (routeMatch ? expandTarget(route.forward_url, routeMatch) : route.forward_url) : (endpoint?.forward_url ?? null);
   const ipEnabled = ipLookupEnabled();
   if (!request.read) after(() => updateRequest(request.id, { read: true }));
 
@@ -92,8 +102,36 @@ export default async function RequestPage(props: PageProps<"/r/[id]">) {
             )}
           </p>
         </div>
-        <RequestActions request={request} defaultTarget={endpoint?.forward_url ?? null} curl={curl} />
+        <RequestActions request={request} defaultTarget={defaultTarget} curl={curl} />
       </header>
+
+      {request.rejected && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border border-l-4 border-l-destructive px-3 py-2 text-xs">
+          <span className="font-semibold tracking-widest text-destructive uppercase">Rejected</span>
+          <span>{request.rejected_reason ?? "Failed the route's header secret check."}</span>
+          <span className="text-muted-foreground">Answered 401, not forwarded.</span>
+        </div>
+      )}
+      {route ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border border-l-4 border-l-primary px-3 py-2 text-xs">
+          <span className="font-semibold tracking-widest uppercase">Route</span>
+          <Link href={`/routes/${route.id}`} className="font-semibold hover:underline">
+            {route.name}
+          </Link>
+          <code className="font-mono text-muted-foreground">{route.pattern}</code>
+          {route.forward_url && <span className="font-mono text-muted-foreground">→ {defaultTarget}</span>}
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3 border border-dashed px-3 py-2 text-xs">
+          <span>
+            <span className="font-semibold tracking-widest text-muted-foreground uppercase">Unregistered</span>
+            <span className="ml-2 text-muted-foreground">No route matched this request. Register one to forward, protect or tag requests like it permanently.</span>
+          </span>
+          <Button nativeButton={false} render={<Link href={`/routes/new?from=${request.id}`} />} size="xs">
+            Register a route like this
+          </Button>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="min-w-0 space-y-6">

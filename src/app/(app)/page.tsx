@@ -9,7 +9,7 @@ import { SectionLabel } from "@/components/section-label";
 import { Sparkline } from "@/components/sparkline";
 import { Button } from "@/components/ui/button";
 import { getBaseUrl } from "@/lib/base-url";
-import { getEndpointSparklines, getStats, listEndpoints, listRequests } from "@/lib/repo";
+import { countUnrouted, getEndpointSparklines, getStats, listEndpoints, listRequests, listRoutes } from "@/lib/repo";
 import { getDb } from "@/lib/db";
 import { getCachedIpInfoMany, ipLookupEnabled, topOrigins } from "@/lib/ipinfo";
 import { OriginsPanel } from "@/components/origins-panel";
@@ -21,7 +21,7 @@ async function unreadByEndpoint(): Promise<Record<string, number>> {
 }
 
 export default async function OverviewPage() {
-  const [stats, endpoints, sparklines, recent, unread, baseUrl, origins] = await Promise.all([
+  const [stats, endpoints, sparklines, recent, unread, baseUrl, origins, routes, unroutedCount] = await Promise.all([
     getStats(),
     listEndpoints(),
     getEndpointSparklines(),
@@ -29,7 +29,10 @@ export default async function OverviewPage() {
     unreadByEndpoint(),
     getBaseUrl(),
     topOrigins(24),
+    listRoutes(),
+    countUnrouted(),
   ]);
+  const routesById = new Map(routes.map((r) => [r.id, r]));
   const ipEnabled = ipLookupEnabled();
   const ipInfo = ipEnabled ? await getCachedIpInfoMany(recent.map((r) => r.ip)) : undefined;
   const byId = new Map(endpoints.map((e) => [e.id, e]));
@@ -49,10 +52,12 @@ export default async function OverviewPage() {
       />
 
       {/* Stats */}
-      <section className="grid grid-cols-2 gap-px border bg-border md:grid-cols-4">
+      <section className="grid grid-cols-2 gap-px border bg-border md:grid-cols-3 xl:grid-cols-6">
         <Stat label="Total captured" value={stats.total} />
         <Stat label="Last 24 hours" value={stats.last24h} />
         <Stat label="Endpoints" value={stats.endpoints} />
+        <Stat label="Routes" value={routes.filter((r) => r.enabled).length} href="/routes" />
+        <Stat label="Unrouted" value={unroutedCount} href="/inbox?unrouted=1" />
         <Stat label="Unread" value={stats.unread} accent={stats.unread > 0} />
       </section>
 
@@ -123,19 +128,26 @@ export default async function OverviewPage() {
         >
           Recent
         </SectionLabel>
-        <RequestList requests={recent} endpointsById={byId} ipInfo={ipInfo} emptyTitle="No requests yet" emptyBody="The first webhook you send will show up here within a few seconds." />
+        <RequestList requests={recent} endpointsById={byId} ipInfo={ipInfo} routesById={routesById} emptyTitle="No requests yet" emptyBody="The first webhook you send will show up here within a few seconds." />
       </section>
     </div>
   );
 }
 
-function Stat({ label, value, accent = false }: { label: string; value: number; accent?: boolean }) {
-  return (
-    <div className="bg-background p-4 sm:p-5">
+function Stat({ label, value, accent = false, href }: { label: string; value: number; accent?: boolean; href?: string }) {
+  const body = (
+    <>
       <div className="text-[10px] font-semibold tracking-[0.2em] text-muted-foreground uppercase">{label}</div>
       <div className={`mt-1 font-heading text-3xl font-semibold tabular sm:text-4xl ${accent ? "text-primary-foreground" : ""}`}>
         {accent ? <span className="bg-primary px-1">{value}</span> : value}
       </div>
-    </div>
+    </>
+  );
+  return href ? (
+    <Link href={href} className="bg-background p-4 transition-colors hover:bg-muted/40 sm:p-5">
+      {body}
+    </Link>
+  ) : (
+    <div className="bg-background p-4 sm:p-5">{body}</div>
   );
 }

@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { RequestList } from "@/components/request-list";
 import { Button } from "@/components/ui/button";
 import { getCachedIpInfoMany, ipLookupEnabled } from "@/lib/ipinfo";
-import { getEndpointBySlug, getStats, listEndpoints, listRequests, listTags } from "@/lib/repo";
+import { getEndpointBySlug, getStats, listEndpoints, listRequests, listRoutes, listTags } from "@/lib/repo";
 
 export const metadata: Metadata = { title: "Inbox" };
 
@@ -26,12 +26,15 @@ export default async function InboxPage(props: PageProps<"/inbox">) {
     method: first(sp.method),
     starred: first(sp.starred) === "1",
     unread: first(sp.unread) === "1",
+    unrouted: first(sp.unrouted) === "1",
+    rejected: first(sp.rejected) === "1",
     tag: first(sp.tag),
     search: first(sp.q),
     before: first(sp.before),
     limit: PAGE + 1,
   };
-  const [rows, endpoints, tags, stats] = await Promise.all([listRequests(filters), listEndpoints({ includeArchived: true }), listTags(), getStats()]);
+  const [rows, endpoints, tags, stats, routes] = await Promise.all([listRequests(filters), listEndpoints({ includeArchived: true }), listTags(), getStats(), listRoutes()]);
+  const routesById = new Map(routes.map((r) => [r.id, r]));
   const hasMore = rows.length > PAGE;
   const requests = hasMore ? rows.slice(0, PAGE) : rows;
   const byId = new Map(endpoints.map((e) => [e.id, e]));
@@ -45,7 +48,7 @@ export default async function InboxPage(props: PageProps<"/inbox">) {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Inbox"
-        title={filters.starred ? "Starred" : "Everything"}
+        title={filters.starred ? "Starred" : filters.unrouted ? "Unrouted" : filters.rejected ? "Rejected" : "Everything"}
         description={`${stats.total} requests across ${stats.endpoints} endpoints`}
         actions={<MarkAllReadButton count={stats.unread} />}
       />
@@ -56,7 +59,8 @@ export default async function InboxPage(props: PageProps<"/inbox">) {
         requests={requests}
         endpointsById={byId}
         ipInfo={ipInfo}
-        emptyTitle={filters.search || filters.method || filters.tag || filters.starred || filters.unread || endpoint ? "No matches" : "Nothing captured yet"}
+        routesById={routesById}
+        emptyTitle={filters.search || filters.method || filters.tag || filters.starred || filters.unread || filters.unrouted || filters.rejected || endpoint ? "No matches" : "Nothing captured yet"}
         emptyBody={filters.search ? `Nothing contains “${filters.search}”.` : undefined}
       />
       {hasMore && (

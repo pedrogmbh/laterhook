@@ -99,6 +99,34 @@ See [`.env.example`](./.env.example) for every variable, including body size
 limit, forward timeout, session lifetime, and `LATERHOOK_PUBLIC_URL` for the
 URLs shown in the UI.
 
+## Routes: permanent webhooks
+
+Endpoints are created on the fly and are fine for looking around. When a
+webhook becomes permanent, register a **route** at `/routes` (or click
+**Register a route like this** on any unrouted request or endpoint, which
+pre-fills the form). A route is a regular expression tested against the path
+after `/webhooks/`, optionally limited to some methods. The first enabled route
+that matches, by priority, decides what happens:
+
+- **Forward**: re-send the request from the server to a destination URL with the
+  same method, headers and body. `$1`, `$2` or `$<name>` in the URL insert the
+  pattern's capture groups, so `^shop/(.+)$` can forward to
+  `https://api.shop.com/hooks/$1`. Extra headers can be added.
+- **Require a header secret**: requests missing the header or carrying a
+  different value are stored as *rejected*, answered with 401, and never
+  forwarded. They show up under the **Rejected** filter.
+- **Response**: status, content type and body returned to the sender, overriding
+  the endpoint's own response.
+- **Auto-tags**: applied to every matching request.
+
+Routes can be disabled without deleting them, and existing unrouted requests
+that match a new route are linked to it so history shows in one place. The
+form has a live tester: type a path to see whether it matches, what the capture
+groups are, and the exact destination URL that would be used.
+
+The overview and inbox show how many requests are still **unrouted**, which is
+the queue of things you have not registered yet.
+
 ## Endpoint settings
 
 Each endpoint has a settings tab with:

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { DashboardSquare01Icon, InboxIcon, StarIcon, Logout03Icon, Link04Icon } from "@hugeicons/core-free-icons";
+import { DashboardSquare01Icon, InboxIcon, StarIcon, Logout03Icon, Link04Icon, Route01Icon } from "@hugeicons/core-free-icons";
 import { logoutAction } from "@/app/actions";
 import { CopyButton } from "@/components/copy-button";
 import { EndpointDot } from "@/components/endpoint-dot";
@@ -30,6 +30,9 @@ export function AppShell({
       </NavLink>
       <NavLink href="/inbox?starred=1" icon={<HugeiconsIcon icon={StarIcon} strokeWidth={2} />}>
         Starred
+      </NavLink>
+      <NavLink href="/routes" icon={<HugeiconsIcon icon={Route01Icon} strokeWidth={2} />}>
+        Routes
       </NavLink>
     </>
   );

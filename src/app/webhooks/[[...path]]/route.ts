@@ -3,6 +3,7 @@ import { env } from "@/lib/env";
 import { deliver } from "@/lib/forward";
 import { ipLookupEnabled, lookupIp } from "@/lib/ipinfo";
 import { ensureEndpoint, insertRequest } from "@/lib/repo";
+import { checkSecret, expandTarget, fullPath, getEnabledRoutes, matchRoute } from "@/lib/routes";
 import type { BodyEncoding } from "@/lib/types";
 
 /**
@@ -100,11 +101,23 @@ async function capture(request: NextRequest, ctx: RouteContext<"/webhooks/[[...p
     null;
 
   try {
-    const [endpoint, body] = await Promise.all([ensureEndpoint(slug), readBody(request, contentType)]);
+    const subpath = rest.map(decodeURIComponent).join("/");
+    const method = request.method.toUpperCase();
+    const [endpoint, body, routes] = await Promise.all([ensureEndpoint(slug), readBody(request, contentType), getEnabledRoutes()]);
+
+    // Permanent routes: first enabled regex match (by priority) decides forwarding, auth and response.
+    const matched = matchRoute(routes, fullPath(slug, subpath), method);
+    const route = matched?.route ?? null;
+    const secret = route ? checkSecret(route, headers) : { ok: true as const };
+
     const stored = await insertRequest({
       endpoint,
-      path: rest.map(decodeURIComponent).join("/"),
-      method: request.method.toUpperCase(),
+      path: subpath,
+      method,
+      route_id: route?.id ?? null,
+      rejected: !secret.ok,
+      rejected_reason: secret.ok ? null : secret.reason,
+      tags: route?.auto_tags ?? [],
       url: request.nextUrl.toString(),
       headers,
       query,
@@ -127,7 +140,35 @@ async function capture(request: NextRequest, ctx: RouteContext<"/webhooks/[[...p
       });
     }
 
-    if (endpoint.forward_enabled && endpoint.forward_url) {
+    const respHeaders: Record<string, string> = {
+      ...CORS_HEADERS,
+      "x-laterhook-id": stored.id,
+      "x-laterhook-endpoint": endpoint.slug,
+    };
+    if (route) respHeaders["x-laterhook-route"] = route.id;
+
+    // Secret mismatch: keep the evidence, tell the sender no, never forward.
+    if (!secret.ok) {
+      respHeaders["content-type"] = "application/json; charset=utf-8";
+      return new Response(request.method === "HEAD" ? null : JSON.stringify({ ok: false, error: "unauthorized", id: stored.id }), {
+        status: 401,
+        headers: respHeaders,
+      });
+    }
+
+    // Forwarding: a matching route wins over endpoint-level forwarding.
+    if (route?.forward_url && matched) {
+      const target = expandTarget(route.forward_url, matched.match);
+      const extraHeaders = route.forward_headers;
+      const routeId = route.id;
+      after(async () => {
+        try {
+          await deliver(stored, target, "forward", { appendPath: false, extraHeaders, routeId });
+        } catch (err) {
+          console.error("[laterhook] route forward failed", stored.id, err);
+        }
+      });
+    } else if (endpoint.forward_enabled && endpoint.forward_url) {
       const target = endpoint.forward_url;
       after(async () => {
         try {
@@ -138,24 +179,20 @@ async function capture(request: NextRequest, ctx: RouteContext<"/webhooks/[[...p
       });
     }
 
-    const respHeaders: Record<string, string> = {
-      ...CORS_HEADERS,
-      "x-laterhook-id": stored.id,
-      "x-laterhook-endpoint": endpoint.slug,
-    };
-    if (endpoint.response_body != null && endpoint.response_body !== "") {
-      respHeaders["content-type"] = endpoint.response_content_type || "application/json; charset=utf-8";
-      return new Response(request.method === "HEAD" ? null : endpoint.response_body, {
-        status: endpoint.response_status,
-        headers: respHeaders,
-      });
+    // Response: route override, then endpoint override, then the default acknowledgement.
+    const status = route?.response_status ?? endpoint.response_status;
+    const customBody = route?.response_body ?? endpoint.response_body;
+    const customType = route?.response_body != null ? route.response_content_type : endpoint.response_content_type;
+    if (customBody != null && customBody !== "") {
+      respHeaders["content-type"] = customType || "application/json; charset=utf-8";
+      return new Response(request.method === "HEAD" ? null : customBody, { status, headers: respHeaders });
     }
     respHeaders["content-type"] = "application/json; charset=utf-8";
     return new Response(
       request.method === "HEAD"
         ? null
-        : JSON.stringify({ ok: true, id: stored.id, endpoint: endpoint.slug, received_at: stored.received_at }),
-      { status: endpoint.response_status, headers: respHeaders },
+        : JSON.stringify({ ok: true, id: stored.id, endpoint: endpoint.slug, route: route?.name ?? null, received_at: stored.received_at }),
+      { status, headers: respHeaders },
     );
   } catch (err) {
     console.error("[laterhook] capture failed", err);

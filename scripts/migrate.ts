@@ -6,7 +6,7 @@
  */
 import { env } from "../src/lib/env";
 import { createD1Database } from "../src/lib/db/d1";
-import { SCHEMA_STATEMENTS } from "../src/lib/db/schema";
+import { POST_MIGRATION_STATEMENTS, SCHEMA_MIGRATIONS, SCHEMA_STATEMENTS } from "../src/lib/db/schema";
 
 async function main() {
   if (env.databaseDriver !== "d1") {
@@ -15,6 +15,14 @@ async function main() {
   }
   const db = createD1Database(env.d1);
   await db.batch(SCHEMA_STATEMENTS.map((sql) => ({ sql })));
+  for (const sql of SCHEMA_MIGRATIONS) {
+    try {
+      await db.query(sql);
+    } catch (err) {
+      if (!/duplicate column/i.test(err instanceof Error ? err.message : String(err))) throw err;
+    }
+  }
+  await db.batch(POST_MIGRATION_STATEMENTS.map((sql) => ({ sql })));
   const { rows } = await db.query<{ name: string }>(`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`);
   console.log("D1 schema ready. Tables:", rows.map((r) => r.name).join(", "));
 }

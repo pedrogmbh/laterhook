@@ -1,7 +1,7 @@
 import { env } from "@/lib/env";
 import { createD1Database } from "./d1";
 import { createSqliteDatabase } from "./sqlite";
-import { SCHEMA_STATEMENTS } from "./schema";
+import { POST_MIGRATION_STATEMENTS, SCHEMA_MIGRATIONS, SCHEMA_STATEMENTS } from "./schema";
 import type { Database } from "./types";
 
 export type { Database, QueryResult, SqlValue } from "./types";
@@ -18,7 +18,7 @@ function schemaKey(): string {
   const driver = env.databaseDriver;
   // Credentials are part of the key (hashed, never stored) so an env change picks up a fresh connection.
   const creds = driver === "d1" ? JSON.stringify(env.d1) : env.sqlitePath;
-  const text = SCHEMA_STATEMENTS.join(";") + "|" + driver + "|" + creds;
+  const text = [...SCHEMA_STATEMENTS, ...SCHEMA_MIGRATIONS, ...POST_MIGRATION_STATEMENTS].join(";") + "|" + driver + "|" + creds;
   for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) >>> 0;
   return h.toString(36);
 }
@@ -28,6 +28,14 @@ async function connect(): Promise<Database> {
   const db =
     driver === "d1" ? createD1Database(env.d1) : await createSqliteDatabase(env.sqlitePath);
   await db.batch(SCHEMA_STATEMENTS.map((sql) => ({ sql })));
+  for (const sql of SCHEMA_MIGRATIONS) {
+    try {
+      await db.query(sql);
+    } catch (err) {
+      if (!/duplicate column/i.test(err instanceof Error ? err.message : String(err))) throw err;
+    }
+  }
+  await db.batch(POST_MIGRATION_STATEMENTS.map((sql) => ({ sql })));
   return db;
 }
 

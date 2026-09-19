@@ -5,6 +5,7 @@ import type {
   Delivery,
   Endpoint,
   RequestFilters,
+  Route,
   Stats,
   WebhookRequest,
 } from "@/lib/types";
@@ -78,6 +79,34 @@ function toRequest(r: Row): WebhookRequest {
     note: str(r.note),
     forward_status: r.forward_status == null ? null : num(r.forward_status),
     forward_error: str(r.forward_error),
+    route_id: str(r.route_id),
+    rejected: bool(r.rejected),
+    rejected_reason: str(r.rejected_reason),
+  };
+}
+
+function toRoute(r: Row): Route {
+  return {
+    id: String(r.id),
+    name: String(r.name),
+    description: str(r.description),
+    pattern: String(r.pattern),
+    case_insensitive: bool(r.case_insensitive),
+    methods: json<string[] | null>(r.methods, null),
+    enabled: bool(r.enabled),
+    priority: num(r.priority, 100),
+    forward_url: str(r.forward_url),
+    forward_headers: json<Record<string, string>>(r.forward_headers, {}),
+    require_header_name: str(r.require_header_name),
+    require_header_value: str(r.require_header_value),
+    response_status: r.response_status == null ? null : num(r.response_status),
+    response_body: str(r.response_body),
+    response_content_type: str(r.response_content_type),
+    auto_tags: json<string[]>(r.auto_tags, []),
+    match_count: num(r.match_count),
+    last_matched_at: str(r.last_matched_at),
+    created_at: String(r.created_at),
+    updated_at: String(r.updated_at),
   };
 }
 
@@ -197,18 +226,23 @@ export interface NewRequestInput {
   size: number;
   ip: string | null;
   user_agent: string | null;
+  route_id?: string | null;
+  rejected?: boolean;
+  rejected_reason?: string | null;
+  tags?: string[];
 }
 
 export async function insertRequest(input: NewRequestInput): Promise<WebhookRequest> {
   const db = await getDb();
   const id = newId("req");
   const ts = now();
-  await db.batch([
+  const tags = input.tags ?? [];
+  const statements: { sql: string; params: SqlValue[] }[] = [
     {
       sql: `INSERT INTO requests
         (id, endpoint_id, endpoint_slug, path, method, url, headers, query, body, body_encoding,
-         body_truncated, content_type, size, ip, user_agent, received_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         body_truncated, content_type, size, ip, user_agent, received_at, route_id, rejected, rejected_reason, tags)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       params: [
         id,
         input.endpoint.id,
@@ -226,13 +260,24 @@ export async function insertRequest(input: NewRequestInput): Promise<WebhookRequ
         input.ip,
         input.user_agent,
         ts,
+        input.route_id ?? null,
+        input.rejected ? 1 : 0,
+        input.rejected_reason ?? null,
+        JSON.stringify(tags),
       ],
     },
     {
       sql: `UPDATE endpoints SET request_count = request_count + 1, last_received_at = ? WHERE id = ?`,
       params: [ts, input.endpoint.id],
     },
-  ]);
+  ];
+  if (input.route_id) {
+    statements.push({
+      sql: `UPDATE routes SET match_count = match_count + 1, last_matched_at = ? WHERE id = ?`,
+      params: [ts, input.route_id],
+    });
+  }
+  await db.batch(statements);
   return {
     id,
     endpoint_id: input.endpoint.id,
@@ -252,10 +297,13 @@ export async function insertRequest(input: NewRequestInput): Promise<WebhookRequ
     received_at: ts,
     starred: false,
     read: false,
-    tags: [],
+    tags,
     note: null,
     forward_status: null,
     forward_error: null,
+    route_id: input.route_id ?? null,
+    rejected: Boolean(input.rejected),
+    rejected_reason: input.rejected_reason ?? null,
   };
 }
 
@@ -278,6 +326,12 @@ export async function listRequests(f: RequestFilters = {}): Promise<WebhookReque
   }
   if (f.starred) where.push("starred = 1");
   if (f.unread) where.push("read = 0");
+  if (f.unrouted) where.push("route_id IS NULL");
+  if (f.rejected) where.push("rejected = 1");
+  if (f.routeId) {
+    where.push("route_id = ?");
+    params.push(f.routeId);
+  }
   if (f.tag) {
     where.push("tags LIKE ?");
     params.push(`%${JSON.stringify(f.tag)}%`);
@@ -469,4 +523,119 @@ export async function getEndpointSparklines(): Promise<Record<string, number[]>>
     if (idx >= 0) arr[idx] = num(r.n);
   }
   return out;
+}
+
+// ---------- routes ----------
+
+export async function listRoutes(opts: { enabledOnly?: boolean } = {}): Promise<Route[]> {
+  const db = await getDb();
+  const { rows } = await db.query<Row>(
+    `SELECT * FROM routes ${opts.enabledOnly ? "WHERE enabled = 1" : ""} ORDER BY priority ASC, created_at ASC`,
+  );
+  return rows.map(toRoute);
+}
+
+export async function getRoute(id: string): Promise<Route | null> {
+  const db = await getDb();
+  const { rows } = await db.query<Row>(`SELECT * FROM routes WHERE id = ? LIMIT 1`, [id]);
+  return rows[0] ? toRoute(rows[0]) : null;
+}
+
+export type RouteInput = Omit<Route, "id" | "match_count" | "last_matched_at" | "created_at" | "updated_at">;
+
+export async function createRoute(input: RouteInput): Promise<Route> {
+  const db = await getDb();
+  const id = newId("rt");
+  const ts = now();
+  await db.query(
+    `INSERT INTO routes (id, name, description, pattern, case_insensitive, methods, enabled, priority, forward_url, forward_headers,
+       require_header_name, require_header_value, response_status, response_body, response_content_type, auto_tags, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      id,
+      input.name,
+      input.description,
+      input.pattern,
+      input.case_insensitive ? 1 : 0,
+      input.methods ? JSON.stringify(input.methods) : null,
+      input.enabled ? 1 : 0,
+      input.priority,
+      input.forward_url,
+      JSON.stringify(input.forward_headers),
+      input.require_header_name,
+      input.require_header_value,
+      input.response_status,
+      input.response_body,
+      input.response_content_type,
+      JSON.stringify(input.auto_tags),
+      ts,
+      ts,
+    ],
+  );
+  return { ...input, id, match_count: 0, last_matched_at: null, created_at: ts, updated_at: ts };
+}
+
+export async function updateRoute(id: string, input: Partial<RouteInput>): Promise<void> {
+  const sets: string[] = [];
+  const params: SqlValue[] = [];
+  const push = (col: string, v: SqlValue) => {
+    sets.push(`${col} = ?`);
+    params.push(v);
+  };
+  if (input.name !== undefined) push("name", input.name);
+  if (input.description !== undefined) push("description", input.description);
+  if (input.pattern !== undefined) push("pattern", input.pattern);
+  if (input.case_insensitive !== undefined) push("case_insensitive", input.case_insensitive ? 1 : 0);
+  if (input.methods !== undefined) push("methods", input.methods ? JSON.stringify(input.methods) : null);
+  if (input.enabled !== undefined) push("enabled", input.enabled ? 1 : 0);
+  if (input.priority !== undefined) push("priority", input.priority);
+  if (input.forward_url !== undefined) push("forward_url", input.forward_url);
+  if (input.forward_headers !== undefined) push("forward_headers", JSON.stringify(input.forward_headers));
+  if (input.require_header_name !== undefined) push("require_header_name", input.require_header_name);
+  if (input.require_header_value !== undefined) push("require_header_value", input.require_header_value);
+  if (input.response_status !== undefined) push("response_status", input.response_status);
+  if (input.response_body !== undefined) push("response_body", input.response_body);
+  if (input.response_content_type !== undefined) push("response_content_type", input.response_content_type);
+  if (input.auto_tags !== undefined) push("auto_tags", JSON.stringify(input.auto_tags));
+  if (!sets.length) return;
+  push("updated_at", now());
+  params.push(id);
+  const db = await getDb();
+  await db.query(`UPDATE routes SET ${sets.join(", ")} WHERE id = ?`, params);
+}
+
+export async function deleteRoute(id: string): Promise<void> {
+  const db = await getDb();
+  await db.batch([
+    { sql: `UPDATE requests SET route_id = NULL WHERE route_id = ?`, params: [id] },
+    { sql: `DELETE FROM routes WHERE id = ?`, params: [id] },
+  ]);
+}
+
+/** Recent requests that matched no route; used to link them when a new route is created. */
+export async function listUnroutedForBackfill(limit = 1000): Promise<Pick<WebhookRequest, "id" | "endpoint_slug" | "path" | "method">[]> {
+  const db = await getDb();
+  const { rows } = await db.query<Row>(
+    `SELECT id, endpoint_slug, path, method FROM requests WHERE route_id IS NULL ORDER BY received_at DESC LIMIT ${Math.min(limit, 5000)}`,
+  );
+  return rows.map((r) => ({ id: String(r.id), endpoint_slug: String(r.endpoint_slug), path: String(r.path ?? ""), method: String(r.method) }));
+}
+
+export async function assignRoute(routeId: string, requestIds: string[]): Promise<number> {
+  if (!requestIds.length) return 0;
+  const db = await getDb();
+  let n = 0;
+  for (let i = 0; i < requestIds.length; i += 100) {
+    const chunk = requestIds.slice(i, i + 100);
+    await db.query(`UPDATE requests SET route_id = ? WHERE id IN (${chunk.map(() => "?").join(",")}) AND route_id IS NULL`, [routeId, ...chunk]);
+    n += chunk.length;
+  }
+  await db.query(`UPDATE routes SET match_count = (SELECT COUNT(*) FROM requests WHERE route_id = ?) WHERE id = ?`, [routeId, routeId]);
+  return n;
+}
+
+export async function countUnrouted(): Promise<number> {
+  const db = await getDb();
+  const { rows } = await db.query<{ n: number }>(`SELECT COUNT(*) AS n FROM requests WHERE route_id IS NULL`);
+  return num(rows[0]?.n);
 }

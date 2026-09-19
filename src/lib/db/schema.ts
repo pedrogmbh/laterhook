@@ -68,4 +68,41 @@ export const SCHEMA_STATEMENTS: string[] = [
     fetched_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_requests_ip ON requests(ip)`,
+  `CREATE TABLE IF NOT EXISTS routes (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    pattern TEXT NOT NULL,
+    case_insensitive INTEGER NOT NULL DEFAULT 0,
+    methods TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    priority INTEGER NOT NULL DEFAULT 100,
+    forward_url TEXT,
+    forward_headers TEXT,
+    require_header_name TEXT,
+    require_header_value TEXT,
+    response_status INTEGER,
+    response_body TEXT,
+    response_content_type TEXT,
+    auto_tags TEXT NOT NULL DEFAULT '[]',
+    match_count INTEGER NOT NULL DEFAULT 0,
+    last_matched_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+];
+
+/**
+ * Column additions for tables that already exist. SQLite has no
+ * `ADD COLUMN IF NOT EXISTS`, so these run one by one and "duplicate column"
+ * errors are ignored.
+ */
+export const SCHEMA_MIGRATIONS: string[] = [
+  `ALTER TABLE requests ADD COLUMN route_id TEXT`,
+  `ALTER TABLE requests ADD COLUMN rejected INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE requests ADD COLUMN rejected_reason TEXT`,
+];
+
+export const POST_MIGRATION_STATEMENTS: string[] = [
+  `CREATE INDEX IF NOT EXISTS idx_requests_route ON requests(route_id, received_at DESC)`,
 ];

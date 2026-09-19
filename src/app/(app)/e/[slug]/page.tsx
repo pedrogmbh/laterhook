@@ -37,6 +37,7 @@ export default async function EndpointPage(props: PageProps<"/e/[slug]">) {
     method: first(sp.method),
     starred: first(sp.starred) === "1",
     unread: first(sp.unread) === "1",
+    rejected: first(sp.rejected) === "1",
     tag: first(sp.tag),
     search: first(sp.q),
     before: first(sp.before),
@@ -80,6 +81,9 @@ export default async function EndpointPage(props: PageProps<"/e/[slug]">) {
         }
         actions={
           <>
+            <Button nativeButton={false} render={<Link href={`/routes/new?endpoint=${encodeURIComponent(endpoint.slug)}`} />} variant="outline" size="sm" title="Create a permanent route covering this endpoint">
+              Register a route like this
+            </Button>
             <MarkAllReadButton endpointId={endpoint.id} count={unread} />
             <div className="hidden w-40 sm:block">
               <Sparkline data={sparklines[endpoint.id] ?? new Array(24).fill(0)} hue={COLOR_OKLCH[endpoint.color].hue} height={28} />
@@ -106,7 +110,7 @@ export default async function EndpointPage(props: PageProps<"/e/[slug]">) {
         </TabsList>
         <TabsContent value="requests" className="space-y-5 pt-2">
           <Suspense>
-            <FiltersBar endpoints={[]} tags={tags} showEndpoint={false} />
+            <FiltersBar endpoints={[]} tags={tags} showEndpoint={false} showRouted={false} />
           </Suspense>
           <RequestList
             requests={requests}

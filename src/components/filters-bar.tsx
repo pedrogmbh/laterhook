@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 const ALL = "__all__";
 
-export function FiltersBar({ endpoints, tags, showEndpoint = true }: { endpoints: Endpoint[]; tags: string[]; showEndpoint?: boolean }) {
+export function FiltersBar({ endpoints, tags, showEndpoint = true, showRouted = true }: { endpoints: Endpoint[]; tags: string[]; showEndpoint?: boolean; showRouted?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -39,7 +39,9 @@ export function FiltersBar({ endpoints, tags, showEndpoint = true }: { endpoints
 
   const starred = params.get("starred") === "1";
   const unread = params.get("unread") === "1";
-  const active = ["q", "method", "endpoint", "tag", "starred", "unread"].some((k) => params.get(k));
+  const unrouted = params.get("unrouted") === "1";
+  const rejected = params.get("rejected") === "1";
+  const active = ["q", "method", "endpoint", "tag", "starred", "unread", "unrouted", "rejected"].some((k) => params.get(k));
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -109,6 +111,14 @@ export function FiltersBar({ endpoints, tags, showEndpoint = true }: { endpoints
       </Button>
       <Button type="button" variant="outline" size="sm" aria-pressed={unread} className={cn(unread && "border-primary")} onClick={() => set({ unread: unread ? null : "1" })}>
         Unread
+      </Button>
+      {showRouted && (
+        <Button type="button" variant="outline" size="sm" aria-pressed={unrouted} className={cn(unrouted && "border-primary")} onClick={() => set({ unrouted: unrouted ? null : "1" })} title="Requests no route matched">
+          Unrouted
+        </Button>
+      )}
+      <Button type="button" variant="outline" size="sm" aria-pressed={rejected} className={cn(rejected && "border-destructive text-destructive")} onClick={() => set({ rejected: rejected ? null : "1" })} title="Requests that failed a route's header secret">
+        Rejected
       </Button>
       {active && (
         <Button type="button" variant="ghost" size="sm" onClick={() => start(() => router.replace(pathname))}>

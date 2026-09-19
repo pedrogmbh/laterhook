@@ -43,6 +43,41 @@ export interface WebhookRequest {
   note: string | null;
   forward_status: number | null;
   forward_error: string | null;
+  /** Route that matched at capture time, if any. */
+  route_id: string | null;
+  /** True when a route's header secret check failed; the request is kept but not forwarded. */
+  rejected: boolean;
+  rejected_reason: string | null;
+}
+
+/**
+ * A permanent, regex-based rule. The pattern is tested against the path after
+ * `/webhooks/` (e.g. `my-product/stripe/live`). First enabled match by
+ * priority wins.
+ */
+export interface Route {
+  id: string;
+  name: string;
+  description: string | null;
+  pattern: string;
+  case_insensitive: boolean;
+  /** Uppercase method list, or null for any method. */
+  methods: string[] | null;
+  enabled: boolean;
+  priority: number;
+  forward_url: string | null;
+  /** Extra headers added when forwarding. */
+  forward_headers: Record<string, string>;
+  require_header_name: string | null;
+  require_header_value: string | null;
+  response_status: number | null;
+  response_body: string | null;
+  response_content_type: string | null;
+  auto_tags: string[];
+  match_count: number;
+  last_matched_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Delivery {
@@ -66,6 +101,10 @@ export interface RequestFilters {
   unread?: boolean;
   tag?: string;
   search?: string;
+  routeId?: string;
+  /** Only requests that matched no route. */
+  unrouted?: boolean;
+  rejected?: boolean;
   limit?: number;
   before?: string; // received_at cursor
 }

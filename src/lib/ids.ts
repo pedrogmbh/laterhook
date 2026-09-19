@@ -10,7 +10,7 @@ function encode(bytes: Uint8Array): string {
  * Time-prefixed random id: sorts roughly by creation time and is URL friendly.
  * e.g. `req_01j8x7r2k4_9fq3ma`
  */
-export function newId(prefix: "req" | "ep" | "dlv"): string {
+export function newId(prefix: "req" | "ep" | "dlv" | "rt"): string {
   const time = Date.now().toString(32).padStart(10, "0");
   const rand = encode(crypto.getRandomValues(new Uint8Array(8)));
   return `${prefix}_${time}${rand}`;

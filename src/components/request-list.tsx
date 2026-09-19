@@ -8,7 +8,7 @@ import { TimeAgo } from "@/components/time-ago";
 import { EmptyState } from "@/components/empty-state";
 import { formatBytes, shortContentType } from "@/lib/format";
 import { flagEmoji, originLabel } from "@/lib/ipinfo";
-import type { Endpoint, IpInfo, WebhookRequest } from "@/lib/types";
+import type { Endpoint, IpInfo, Route, WebhookRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function bodyPreview(r: WebhookRequest): string | null {
@@ -25,11 +25,14 @@ export function RequestList({
   emptyBody,
   highlightSince,
   ipInfo,
+  routesById,
 }: {
   requests: WebhookRequest[];
   endpointsById: Map<string, Endpoint>;
   /** Cached origin info keyed by IP; when provided, rows show a flag and place. */
   ipInfo?: Map<string, IpInfo>;
+  /** Routes by id; when provided, rows show which route matched. */
+  routesById?: Map<string, Route>;
   showEndpoint?: boolean;
   emptyTitle?: string;
   emptyBody?: React.ReactNode;
@@ -67,6 +70,16 @@ export function RequestList({
                     /{r.endpoint_slug}
                     {r.path ? `/${r.path}` : ""}
                   </span>
+                  {r.rejected && (
+                    <span className="hue-chip shrink-0 border px-1 text-[10px] font-semibold tracking-wider uppercase" style={{ "--h": 15 } as React.CSSProperties} title={r.rejected_reason ?? "Rejected"}>
+                      rejected
+                    </span>
+                  )}
+                  {r.route_id && routesById?.get(r.route_id) && (
+                    <span className="hidden shrink-0 border border-dashed px-1 text-[10px] tracking-wider text-muted-foreground uppercase md:inline" title="Matched route">
+                      ⇢ {routesById.get(r.route_id)!.name}
+                    </span>
+                  )}
                   {r.starred && <HugeiconsIcon icon={StarIcon} strokeWidth={2.5} className="size-3 shrink-0 text-amber-500" fill="currentColor" />}
                   {r.tags.slice(0, 3).map((t) => (
                     <span key={t} className="hidden shrink-0 border px-1 text-[10px] tracking-wider text-muted-foreground uppercase md:inline">
