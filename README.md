@@ -1,160 +1,200 @@
-# laterhook
+<p align="center">
+  <img src="docs/banner.png" alt="laterhook: catch every webhook now, sort it out later" width="100%">
+</p>
 
-**Catch every webhook now. Sort it out later.**
+<h1 align="center">laterhook</h1>
 
-laterhook is a self-hosted webhook inbox. Point any provider at
-`https://your-deployment/webhooks/<any-name>` and the request is stored
-immediately, with zero configuration. Later, from a password-protected dashboard,
-you can browse and search everything that arrived, name and colour endpoints,
-tag and annotate requests, forward new traffic to its real destination, and
-replay any stored request to any URL.
+<p align="center">
+  <strong>Catch every webhook now. Sort it out later.</strong><br>
+  A self-hosted webhook inbox with zero-setup ingest, a dashboard you'll actually enjoy opening,<br>
+  and permanent routes that forward, protect and tag traffic once you know what it is.
+</p>
 
-## How it works
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#routes-make-it-permanent">Routes</a> ·
+  <a href="#configuration">Configuration</a> ·
+  <a href="#development">Development</a>
+</p>
 
-| Piece | Where |
-| --- | --- |
-| Ingest API, any method, any depth | `/webhooks/<endpoint>[/<deeper/path>]` |
-| Dashboard | `/` (overview), `/inbox`, `/e/<endpoint>`, `/r/<request id>` |
-| Auth | single password from `LATERHOOK_PASSWORD`, signed cookie session |
-| Storage | Cloudflare D1 via its REST API in production, local SQLite in development |
-| Hosting | Vercel (Next.js App Router, Node.js runtime) |
+<p align="center">
+  <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white">
+  <img alt="Bun" src="https://img.shields.io/badge/Bun-1.4-f9f1e1?logo=bun&logoColor=black">
+  <img alt="Cloudflare D1" src="https://img.shields.io/badge/Cloudflare-D1-f38020?logo=cloudflare&logoColor=white">
+  <img alt="Deploys to Vercel" src="https://img.shields.io/badge/Deploys%20to-Vercel-000000?logo=vercel&logoColor=white">
+  <img alt="shadcn/ui" src="https://img.shields.io/badge/shadcn%2Fui-v4-18181b">
+</p>
 
-The first path segment after `/webhooks/` becomes the endpoint. It is created on
-first contact. Everything after it is kept as a sub-path, and is re-appended
-when forwarding or replaying, so `/webhooks/shop/stripe/live` forwards to
-`<target>/stripe/live`.
+<br>
 
-Each stored request keeps: method, full URL, all headers, query string, body
-(text or base64 for binary, truncated above `LATERHOOK_MAX_BODY_BYTES`), source
-IP, user agent, and timestamp. You can star it, tag it, write a note, copy it as
-a `curl` command, and see every delivery attempt with status, latency, and the
-response body.
+<p align="center">
+  <img src="docs/screenshots/overview.png" alt="laterhook overview: stats, 24h traffic, methods, origins by country and endpoint cards" width="100%">
+</p>
 
-## Local development
+## Why
+
+Every new product needs webhook URLs before it has anywhere to put them. Stripe wants one today, the payment provider tomorrow, GitHub next week. You end up with throwaway request bins, half-configured tunnels, and payloads you wish you had kept.
+
+laterhook flips the order. **Send first, decide later.**
+
+```bash
+curl -X POST https://hooks.example.com/webhooks/my-product/stripe \
+  -H 'content-type: application/json' \
+  -d '{"type":"payment_intent.succeeded","amount":4200}'
+```
+
+That's it. No endpoint to create, no schema to think about. The endpoint `my-product` now exists, the full request is stored, and the sender got a `200`. When you're ready, open the dashboard, look at what arrived, and turn it into a permanent route that forwards to your real backend.
+
+## What you get
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/inbox.png" alt="Inbox with method chips, route chips, tags, rejected markers and filters">
+      <p><strong>An inbox, not a log.</strong> Every request with its method, endpoint, sub-path, body preview, size, origin flag and age. Filter by method, endpoint, tag, starred, unread, unrouted or rejected. Full-text search across body, headers, path and IP. Live updates while you watch.</p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/webhook.png" alt="Request detail with highlighted JSON, headers, deliveries, curl reproduction and origin card">
+      <p><strong>Everything about one request.</strong> Syntax-highlighted body, headers (platform noise folded away), query string, delivery history, raw JSON and a copy-pasteable <code>curl</code>. Star it, tag it, leave a note, or replay it to any URL.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/routes.png" alt="Routes list showing pattern, methods, forward destination, required secret and match counts">
+      <p><strong>Routes are the permanent layer.</strong> A regex over the incoming path, optional method filter, priority. First match wins. Enable and disable without deleting. See how many requests each one caught and when.</p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/permanent.png" alt="Route settings: pattern with live tester, forward URL with capture groups, extra headers and header secret">
+      <p><strong>Forward, protect, shape, tag.</strong> Forward with <code>$1</code> capture groups and extra headers. Require a header secret and reject everything else with <code>401</code>. Override the response the sender sees. Auto-tag matches. A live tester shows exactly what a path would do.</p>
+    </td>
+  </tr>
+</table>
+
+<details>
+<summary><strong>More screens</strong></summary>
+<br>
+<p align="center">
+  <img src="docs/screenshots/starred.png" alt="Starred filter" width="49%">
+  <img src="docs/screenshots/sign-in.png" alt="Sign-in page" width="49%">
+</p>
+</details>
+
+### Feature list
+
+- **Zero-setup ingest.** Any method, any depth: `/webhooks/<name>/<any/deeper/path>`. Endpoints are created on first contact.
+- **Full capture.** Method, URL, headers, query, body (text or base64, size-capped), source IP, user agent, timestamp.
+- **Endpoints.** Name, colour, description, optional endpoint-level forwarding and custom acknowledgement.
+- **Routes.** Regex + method matching, forwarding with capture groups and extra headers, header secrets, response overrides, auto-tags, backfill of earlier requests, "Register a route like this" from any unrouted request or endpoint.
+- **Replay.** Re-send any stored request to any URL. Every attempt is recorded with status, latency and response body.
+- **Origins.** Optional ip-api.com enrichment: flag, city, ISP, ASN, timezone, proxy/VPN and datacenter flags, plus a by-country breakdown on the overview.
+- **Live.** New requests appear with a toast while the dashboard is open.
+- **Sharing-ready.** Favicon set, Open Graph and Twitter images, web manifest, theme colours. Marked `noindex`.
+- **Single password.** Set it in env, done. No accounts, no OAuth dance.
+- **Runs on the free tiers.** Vercel for the app, Cloudflare D1 for storage, local SQLite for development.
+
+## Quick start
+
+### Deploy to Vercel
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fpedrogmbh%2Flaterhook&env=LATERHOOK_PASSWORD,LATERHOOK_SECRET,LATERHOOK_D1_ACCOUNT_ID,LATERHOOK_D1_DATABASE_ID,LATERHOOK_D1_TOKEN&envDescription=Dashboard%20password%2C%20cookie%20secret%20and%20Cloudflare%20D1%20credentials&envLink=https%3A%2F%2Fgithub.com%2Fpedrogmbh%2Flaterhook%23configuration&project-name=laterhook&repository-name=laterhook)
+
+1. Create a D1 database: `wrangler d1 create laterhook`, or use the Cloudflare dashboard. Keep the database id.
+2. Create a Cloudflare API token with **D1: Edit** on your account. Keep the token and your account id.
+3. Click the button, or import the repo in Vercel, and set the variables listed under [Configuration](#configuration).
+4. Deploy. The schema is created automatically on the first request.
+
+### Run locally
 
 ```bash
 bun install
-cp .env.example .env.local   # set LATERHOOK_PASSWORD; leave DATABASE_DRIVER=sqlite
-bun dev
+cp .env.example .env.local     # set LATERHOOK_PASSWORD, keep DATABASE_DRIVER=sqlite
+bun dev                        # http://localhost:3000
 ```
 
-Open http://localhost:3000, log in, then send something:
+Send something and watch it appear:
 
 ```bash
-curl -X POST http://localhost:3000/webhooks/my-product/stripe \
-  -H 'content-type: application/json' \
-  -d '{"event":"payment.succeeded","amount":4200}'
+curl -X POST http://localhost:3000/webhooks/hello/world -d '{"hi":"there"}'
 ```
 
-The local database lives at `.data/laterhook.db` (git-ignored) and is created
-on the first request.
+Local data lives in `.data/laterhook.db`, git-ignored, created on first use.
 
-## Deploying to Vercel with Cloudflare D1
+## How it works
 
-1. Create the database: `wrangler d1 create laterhook` (or use the Cloudflare
-   dashboard). Note the database id.
-2. Create a Cloudflare API token with the **D1: Edit** permission for your
-   account. Note your account id.
-3. In Vercel, set these environment variables:
+```mermaid
+flowchart LR
+    S[Any sender] -->|POST /webhooks/shop/stripe/live| C[Capture route]
+    C --> E{Endpoint exists?}
+    E -->|no| N[Create it on the fly]
+    E -->|yes| M
+    N --> M{Route match?}
+    M -->|secret mismatch| R[Store as rejected → 401]
+    M -->|match| F[Store → custom response]
+    M -->|no match| U[Store as unrouted → 200]
+    F -.after response.-> D[Forward to destination]
+    D --> L[(Delivery log)]
+    F --> DB[(D1 / SQLite)]
+    U --> DB
+    R --> DB
+```
 
-   | Variable | Value |
-   | --- | --- |
-   | `LATERHOOK_PASSWORD` | your dashboard password |
-   | `LATERHOOK_SECRET` | a long random string (signs the session cookie) |
-   | `LATERHOOK_D1_ACCOUNT_ID` | from step 2 |
-   | `LATERHOOK_D1_DATABASE_ID` | from step 1 |
-   | `LATERHOOK_D1_TOKEN` | from step 2 |
-   | `IP_API_KEY` | optional, ip-api.com Pro key for sender geolocation |
+- The first path segment after `/webhooks/` is the **endpoint**. Anything deeper is kept as a sub-path.
+- **Routes** are tested against the whole path, e.g. `shop/stripe/live`, in priority order.
+- Forwarding runs **after the response is sent**, so senders always get a fast acknowledgement.
+- Every forward and replay becomes a **delivery** row: status, duration, response headers and body.
 
-   The generic `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_D1_DATABASE_ID` and
-   `CLOUDFLARE_API_TOKEN` names also work, but the `LATERHOOK_D1_*` ones take
-   precedence, which matters if your shell exports a global Cloudflare token.
+## Routes make it permanent
 
-4. Deploy. The schema is created automatically on the first request. To
-   verify credentials beforehand, run `bun run db:migrate` locally with the
-   same variables in `.env.local`.
+Open any unrouted request and click **Register a route like this**. The form is pre-filled with an anchored pattern for that exact path and method. Loosen it as needed:
 
-`DATABASE_DRIVER` can be set explicitly to `d1` or `sqlite`; when unset it is
-`d1` if the three D1 variables are present and `sqlite` otherwise.
+| Goal | Pattern | Destination |
+| --- | --- | --- |
+| Everything for one product | `^my-product(?:/(.*))?$` | `https://api.my-product.com/hooks/$1` |
+| Stripe live and test separately | `^shop/stripe/(live\|test)$` | `https://api.shop.com/stripe/$1` |
+| One provider, any product | `^([^/]+)/github(?:/.*)?$` | `https://ci.internal/hooks/$1` |
+| Record only, but protected | `^partner-x/.*` | *(empty)* + require `X-Partner-Token` |
 
-## Sender geolocation (optional)
-
-Set `IP_API_KEY` to an [ip-api.com](https://ip-api.com) Pro license key and
-every sender IP is looked up once and cached in the `ip_info` table (refreshed
-after `IP_API_CACHE_DAYS`, default 30). You then get:
-
-- an **Origin** card on each request: flag, city, region, country, ISP,
-  organisation, AS, timezone, reverse DNS, coordinates, and proxy/VPN,
-  datacenter and mobile flags;
-- a flag and place next to each row in the inbox and endpoint lists;
-- an **Origins, last 24h** breakdown by country on the overview;
-- IP search in the inbox search box.
-
-Private and reserved addresses are recognised locally and never sent to the
-API. Without a key nothing is looked up and the UI just shows the raw IP.
-
-## Sharing the tool
-
-Link previews work out of the box: the app ships an SVG favicon, an Apple touch
-icon, a generated 1200×630 Open Graph / Twitter image, a web manifest and
-`robots.txt`. Set `LATERHOOK_PUBLIC_URL` so absolute Open Graph URLs point at
-your domain (on Vercel the production URL is used automatically). The dashboard
-is marked `noindex`; previews still render because the metadata routes are
-reachable without a session.
+Each route can also add headers to the forwarded request, return a custom status and body to the sender, and stamp tags onto matches. Requests that fail the secret are kept as **rejected**, answered with `401`, and never forwarded, so you still see who's knocking.
 
 ## Configuration
 
-See [`.env.example`](./.env.example) for every variable, including body size
-limit, forward timeout, session lifetime, and `LATERHOOK_PUBLIC_URL` for the
-URLs shown in the UI.
+All variables are documented in [`.env.example`](./.env.example).
 
-## Routes: permanent webhooks
+| Variable | Required | What it does |
+| --- | :---: | --- |
+| `LATERHOOK_PASSWORD` | yes | Dashboard password. |
+| `LATERHOOK_SECRET` | recommended | Signs the session cookie. Falls back to a password-derived value. |
+| `LATERHOOK_D1_ACCOUNT_ID` | prod | Cloudflare account id. `CLOUDFLARE_ACCOUNT_ID` also works. |
+| `LATERHOOK_D1_DATABASE_ID` | prod | D1 database id. `CLOUDFLARE_D1_DATABASE_ID` also works. |
+| `LATERHOOK_D1_TOKEN` | prod | API token with D1 edit rights. `CLOUDFLARE_API_TOKEN` also works. |
+| `DATABASE_DRIVER` | no | `d1` or `sqlite`. Inferred from the variables above when unset. |
+| `SQLITE_PATH` | no | Local file for the SQLite driver. Default `.data/laterhook.db`. |
+| `IP_API_KEY` | no | [ip-api.com](https://ip-api.com) Pro key. Enables sender geolocation. |
+| `IP_API_CACHE_DAYS` | no | Days before a cached IP lookup refreshes. Default 30. |
+| `LATERHOOK_PUBLIC_URL` | no | Public origin for URLs in the UI and Open Graph tags. Inferred on Vercel. |
+| `LATERHOOK_MAX_BODY_BYTES` | no | Largest stored body. Default 512 KiB, larger bodies are truncated. |
+| `LATERHOOK_FORWARD_TIMEOUT_MS` | no | Forward and replay timeout. Default 10 s. |
+| `LATERHOOK_SESSION_TTL` | no | Session lifetime in seconds. Default 30 days. |
 
-Endpoints are created on the fly and are fine for looking around. When a
-webhook becomes permanent, register a **route** at `/routes` (or click
-**Register a route like this** on any unrouted request or endpoint, which
-pre-fills the form). A route is a regular expression tested against the path
-after `/webhooks/`, optionally limited to some methods. The first enabled route
-that matches, by priority, decides what happens:
+The `LATERHOOK_D1_*` names take precedence over the generic `CLOUDFLARE_*` ones, so a global Cloudflare token exported by your shell can't shadow the project's.
 
-- **Forward**: re-send the request from the server to a destination URL with the
-  same method, headers and body. `$1`, `$2` or `$<name>` in the URL insert the
-  pattern's capture groups, so `^shop/(.+)$` can forward to
-  `https://api.shop.com/hooks/$1`. Extra headers can be added.
-- **Require a header secret**: requests missing the header or carrying a
-  different value are stored as *rejected*, answered with 401, and never
-  forwarded. They show up under the **Rejected** filter.
-- **Response**: status, content type and body returned to the sender, overriding
-  the endpoint's own response.
-- **Auto-tags**: applied to every matching request.
-
-Routes can be disabled without deleting them, and existing unrouted requests
-that match a new route are linked to it so history shows in one place. The
-form has a live tester: type a path to see whether it matches, what the capture
-groups are, and the exact destination URL that would be used.
-
-The overview and inbox show how many requests are still **unrouted**, which is
-the queue of things you have not registered yet.
-
-## Endpoint settings
-
-Each endpoint has a settings tab with:
-
-- **Identity**: display name, description, colour.
-- **Forwarding**: a target URL and a switch. When on, every new request is
-  re-sent right after it is stored (using `after()`, so the sender is
-  acknowledged first). The original headers are preserved except hop-by-hop and
-  platform headers, and `x-laterhook-*` headers are added.
-- **Response**: the status code, content type, and body returned to the sender.
-  Some providers require a specific acknowledgement.
-- **Danger zone**: clear requests, archive, delete.
-
-## Scripts
+## Development
 
 ```bash
-bun dev             # dev server
-bun run build       # production build
-bun start           # serve the production build
+bun dev             # dev server with hot reload
 bun run typecheck   # tsc --noEmit
-bun run db:migrate  # apply schema to D1 (reads .env.local / .env)
+bun run build       # production build
+bun run db:migrate  # apply the schema to D1 and verify credentials
 ```
+
+Built with Next.js 16 (App Router, Node runtime), React 19, Tailwind CSS v4, shadcn/ui v4 on Base UI, Hugeicons, and Cloudflare D1 over its REST API. There is no ORM: one small driver interface, two drivers, all SQL in one file. See [`AGENTS.md`](./AGENTS.md) for the architecture tour.
+
+## Roadmap
+
+- Retention policy and bulk delete
+- Export requests as JSON or HAR
+- Payload-based route conditions
+- Webhook signature verification helpers for common providers
+
+Ideas and pull requests are welcome.
