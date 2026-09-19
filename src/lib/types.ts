@@ -81,3 +81,38 @@ export interface Stats {
   /** Method distribution over the last 24h. */
   methods: { method: string; count: number }[];
 }
+
+/** Geolocation / network data from ip-api.com, cached per IP. */
+export interface IpInfoData {
+  continent?: string;
+  continentCode?: string;
+  country?: string;
+  countryCode?: string;
+  region?: string;
+  regionName?: string;
+  city?: string;
+  district?: string;
+  zip?: string;
+  lat?: number;
+  lon?: number;
+  timezone?: string;
+  offset?: number;
+  currency?: string;
+  isp?: string;
+  org?: string;
+  as?: string;
+  asname?: string;
+  reverse?: string;
+  mobile?: boolean;
+  proxy?: boolean;
+  hosting?: boolean;
+  query?: string;
+}
+
+export interface IpInfo {
+  ip: string;
+  status: "success" | "fail";
+  message: string | null;
+  data: IpInfoData;
+  fetched_at: string;
+}

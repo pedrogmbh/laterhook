@@ -7,7 +7,8 @@ import { StatusPill } from "@/components/status-pill";
 import { TimeAgo } from "@/components/time-ago";
 import { EmptyState } from "@/components/empty-state";
 import { formatBytes, shortContentType } from "@/lib/format";
-import type { Endpoint, WebhookRequest } from "@/lib/types";
+import { flagEmoji, originLabel } from "@/lib/ipinfo";
+import type { Endpoint, IpInfo, WebhookRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function bodyPreview(r: WebhookRequest): string | null {
@@ -23,9 +24,12 @@ export function RequestList({
   emptyTitle = "Nothing captured yet",
   emptyBody,
   highlightSince,
+  ipInfo,
 }: {
   requests: WebhookRequest[];
   endpointsById: Map<string, Endpoint>;
+  /** Cached origin info keyed by IP; when provided, rows show a flag and place. */
+  ipInfo?: Map<string, IpInfo>;
   showEndpoint?: boolean;
   emptyTitle?: string;
   emptyBody?: React.ReactNode;
@@ -38,6 +42,8 @@ export function RequestList({
         const ep = endpointsById.get(r.endpoint_id);
         const preview = bodyPreview(r);
         const isNew = highlightSince ? r.received_at > highlightSince : false;
+        const origin = r.ip ? ipInfo?.get(r.ip) : undefined;
+        const originText = originLabel(origin);
         return (
           <li key={r.id} className={cn(isNew && "row-new")}>
             <Link
@@ -79,6 +85,12 @@ export function RequestList({
                   <span className="hidden items-center gap-1 sm:inline-flex" title="Forward result">
                     <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="size-3" />
                     <StatusPill status={r.forward_status} error={r.forward_error} />
+                  </span>
+                )}
+                {originText && (
+                  <span className="hidden max-w-36 items-center gap-1 truncate xl:inline-flex" title={`${r.ip} · ${originText}`}>
+                    <span aria-hidden>{flagEmoji(origin?.data.countryCode)}</span>
+                    <span className="truncate">{originText}</span>
                   </span>
                 )}
                 <span className="hidden w-14 text-right font-mono uppercase lg:inline">{shortContentType(r.content_type)}</span>

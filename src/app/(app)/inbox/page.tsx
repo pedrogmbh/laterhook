@@ -6,6 +6,7 @@ import { MarkAllReadButton } from "@/components/mark-all-read";
 import { PageHeader } from "@/components/page-header";
 import { RequestList } from "@/components/request-list";
 import { Button } from "@/components/ui/button";
+import { getCachedIpInfoMany, ipLookupEnabled } from "@/lib/ipinfo";
 import { getEndpointBySlug, getStats, listEndpoints, listRequests, listTags } from "@/lib/repo";
 
 export const metadata: Metadata = { title: "Inbox" };
@@ -34,6 +35,7 @@ export default async function InboxPage(props: PageProps<"/inbox">) {
   const hasMore = rows.length > PAGE;
   const requests = hasMore ? rows.slice(0, PAGE) : rows;
   const byId = new Map(endpoints.map((e) => [e.id, e]));
+  const ipInfo = ipLookupEnabled() ? await getCachedIpInfoMany(requests.map((r) => r.ip)) : undefined;
 
   const nextParams = new URLSearchParams();
   for (const [k, v] of Object.entries(sp)) if (typeof v === "string" && k !== "before") nextParams.set(k, v);
@@ -53,6 +55,7 @@ export default async function InboxPage(props: PageProps<"/inbox">) {
       <RequestList
         requests={requests}
         endpointsById={byId}
+        ipInfo={ipInfo}
         emptyTitle={filters.search || filters.method || filters.tag || filters.starred || filters.unread || endpoint ? "No matches" : "Nothing captured yet"}
         emptyBody={filters.search ? `Nothing contains “${filters.search}”.` : undefined}
       />

@@ -16,7 +16,9 @@ import { TagsEditor } from "@/components/tags-editor";
 import { LocalTime, TimeAgo } from "@/components/time-ago";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatBytes, formatDuration, shortContentType, toCurl } from "@/lib/format";
+import { flagEmoji, ipLookupEnabled, lookupIp } from "@/lib/ipinfo";
 import { getEndpointById, getRequest, listDeliveries, listTags, updateRequest } from "@/lib/repo";
+import { IpPanel } from "@/components/ip-panel";
 
 export async function generateMetadata(props: PageProps<"/r/[id]">): Promise<Metadata> {
   const { id } = await props.params;
@@ -30,7 +32,9 @@ export default async function RequestPage(props: PageProps<"/r/[id]">) {
   const { id } = await props.params;
   const request = await getRequest(id);
   if (!request) notFound();
-  const [endpoint, deliveries, tags] = await Promise.all([getEndpointById(request.endpoint_id), listDeliveries(request.id), listTags()]);
+  // lookupIp is cached per IP; the network call only happens the first time an address is seen.
+  const [endpoint, deliveries, tags, ipInfo] = await Promise.all([getEndpointById(request.endpoint_id), listDeliveries(request.id), listTags(), lookupIp(request.ip)]);
+  const ipEnabled = ipLookupEnabled();
   if (!request.read) after(() => updateRequest(request.id, { read: true }));
 
   const headerEntries = Object.entries(request.headers).sort(([a], [b]) => a.localeCompare(b));
@@ -78,6 +82,12 @@ export default async function RequestPage(props: PageProps<"/r/[id]">) {
               <>
                 {" "}
                 · from <span className="font-mono text-foreground">{request.ip}</span>
+                {ipInfo?.status === "success" && (
+                  <span className="text-foreground">
+                    {" "}
+                    <span aria-hidden>{flagEmoji(ipInfo.data.countryCode)}</span> {[ipInfo.data.city, ipInfo.data.country].filter(Boolean).join(", ")}
+                  </span>
+                )}
               </>
             )}
           </p>
@@ -187,6 +197,7 @@ export default async function RequestPage(props: PageProps<"/r/[id]">) {
               )}
             </dl>
           </div>
+          <IpPanel ip={request.ip} info={ipInfo} enabled={ipEnabled} requestId={request.id} />
           <div className="space-y-3">
             <SectionLabel>Tags</SectionLabel>
             <TagsEditor requestId={request.id} initial={request.tags} suggestions={tags} />

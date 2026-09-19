@@ -68,6 +68,14 @@ export const env = {
   get forwardTimeoutMs(): number {
     return Number(optional("LATERHOOK_FORWARD_TIMEOUT_MS") ?? 10_000);
   },
+  /** ip-api.com Pro license key. When set, request origins are geolocated. Optional. */
+  get ipApiKey(): string | undefined {
+    return optional("IP_API_KEY");
+  },
+  /** How long a cached IP lookup stays fresh, in days. Default 30. */
+  get ipInfoTtlDays(): number {
+    return Number(optional("IP_API_CACHE_DAYS") ?? 30);
+  },
   /** Public base URL shown in the UI (e.g. https://hooks.example.com). Inferred from the request when unset. */
   get publicBaseUrl(): string | undefined {
     return optional("LATERHOOK_PUBLIC_URL");

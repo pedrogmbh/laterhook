@@ -1,6 +1,7 @@
 import { after, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
 import { deliver } from "@/lib/forward";
+import { ipLookupEnabled, lookupIp } from "@/lib/ipinfo";
 import { ensureEndpoint, insertRequest } from "@/lib/repo";
 import type { BodyEncoding } from "@/lib/types";
 
@@ -115,6 +116,16 @@ async function capture(request: NextRequest, ctx: RouteContext<"/webhooks/[[...p
       ip,
       user_agent: request.headers.get("user-agent"),
     });
+
+    if (ip && ipLookupEnabled()) {
+      after(async () => {
+        try {
+          await lookupIp(ip);
+        } catch (err) {
+          console.error("[laterhook] ip lookup failed", ip, err);
+        }
+      });
+    }
 
     if (endpoint.forward_enabled && endpoint.forward_url) {
       const target = endpoint.forward_url;

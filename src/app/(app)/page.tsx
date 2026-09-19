@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { getBaseUrl } from "@/lib/base-url";
 import { getEndpointSparklines, getStats, listEndpoints, listRequests } from "@/lib/repo";
 import { getDb } from "@/lib/db";
+import { getCachedIpInfoMany, ipLookupEnabled, topOrigins } from "@/lib/ipinfo";
+import { OriginsPanel } from "@/components/origins-panel";
 
 async function unreadByEndpoint(): Promise<Record<string, number>> {
   const db = await getDb();
@@ -19,14 +21,17 @@ async function unreadByEndpoint(): Promise<Record<string, number>> {
 }
 
 export default async function OverviewPage() {
-  const [stats, endpoints, sparklines, recent, unread, baseUrl] = await Promise.all([
+  const [stats, endpoints, sparklines, recent, unread, baseUrl, origins] = await Promise.all([
     getStats(),
     listEndpoints(),
     getEndpointSparklines(),
     listRequests({ limit: 12 }),
     unreadByEndpoint(),
     getBaseUrl(),
+    topOrigins(24),
   ]);
+  const ipEnabled = ipLookupEnabled();
+  const ipInfo = ipEnabled ? await getCachedIpInfoMany(recent.map((r) => r.ip)) : undefined;
   const byId = new Map(endpoints.map((e) => [e.id, e]));
   const example = `curl -X POST ${baseUrl}/webhooks/my-product/stripe \\\n  -H 'content-type: application/json' \\\n  -d '{"event":"payment.succeeded","amount":4200}'`;
 
@@ -51,7 +56,7 @@ export default async function OverviewPage() {
         <Stat label="Unread" value={stats.unread} accent={stats.unread > 0} />
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+      <section className={ipEnabled ? "grid gap-6 lg:grid-cols-[2fr_1fr_1fr]" : "grid gap-6 lg:grid-cols-[2fr_1fr]"}>
         <div className="border p-4">
           <SectionLabel className="mb-3" right={<span className="font-mono text-[10px] text-muted-foreground">hourly · UTC</span>}>
             Traffic, last 24h
@@ -81,6 +86,7 @@ export default async function OverviewPage() {
             </ul>
           )}
         </div>
+        {ipEnabled && <OriginsPanel origins={origins} total={stats.last24h} />}
       </section>
 
       {/* Endpoints */}
@@ -117,7 +123,7 @@ export default async function OverviewPage() {
         >
           Recent
         </SectionLabel>
-        <RequestList requests={recent} endpointsById={byId} emptyTitle="No requests yet" emptyBody="The first webhook you send will show up here within a few seconds." />
+        <RequestList requests={recent} endpointsById={byId} ipInfo={ipInfo} emptyTitle="No requests yet" emptyBody="The first webhook you send will show up here within a few seconds." />
       </section>
     </div>
   );

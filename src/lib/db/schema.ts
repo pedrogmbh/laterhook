@@ -60,4 +60,12 @@ export const SCHEMA_STATEMENTS: string[] = [
     created_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_deliveries_request ON deliveries(request_id, created_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS ip_info (
+    ip TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    message TEXT,
+    data TEXT NOT NULL DEFAULT '{}',
+    fetched_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_requests_ip ON requests(ip)`,
 ];

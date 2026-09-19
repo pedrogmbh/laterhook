@@ -17,6 +17,7 @@ import { getBaseUrl } from "@/lib/base-url";
 import { COLOR_OKLCH } from "@/lib/palette";
 import { getEndpointBySlug, getEndpointSparklines, listRequests, listTags } from "@/lib/repo";
 import { getDb } from "@/lib/db";
+import { getCachedIpInfoMany, ipLookupEnabled } from "@/lib/ipinfo";
 
 export async function generateMetadata(props: PageProps<"/e/[slug]">): Promise<Metadata> {
   const { slug } = await props.params;
@@ -53,6 +54,7 @@ export default async function EndpointPage(props: PageProps<"/e/[slug]">) {
   const hasMore = rows.length > PAGE;
   const requests = hasMore ? rows.slice(0, PAGE) : rows;
   const byId = new Map([[endpoint.id, endpoint]]);
+  const ipInfo = ipLookupEnabled() ? await getCachedIpInfoMany(requests.map((r) => r.ip)) : undefined;
   const ingestUrl = `${baseUrl}/webhooks/${endpoint.slug}`;
   const tab = first(sp.tab) === "settings" ? "settings" : "requests";
 
@@ -109,6 +111,7 @@ export default async function EndpointPage(props: PageProps<"/e/[slug]">) {
           <RequestList
             requests={requests}
             endpointsById={byId}
+            ipInfo={ipInfo}
             showEndpoint={false}
             emptyTitle={filters.search || filters.method || filters.tag || filters.starred || filters.unread ? "No matches" : "Waiting for the first request"}
             emptyBody={

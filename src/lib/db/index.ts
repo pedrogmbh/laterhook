@@ -7,9 +7,18 @@ import type { Database } from "./types";
 export type { Database, QueryResult, SqlValue } from "./types";
 
 // Cache across hot reloads in dev and across invocations on a warm function.
+// The cache is keyed by a fingerprint of the schema so that editing schema.ts
+// re-applies it (statements are idempotent) instead of reusing a stale setup.
 const globalCache = globalThis as unknown as {
-  __laterhookDb?: Promise<Database>;
+  __laterhookDb?: { key: string; promise: Promise<Database> };
 };
+
+function schemaKey(): string {
+  let h = 0;
+  const text = SCHEMA_STATEMENTS.join(";") + "|" + env.databaseDriver;
+  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
 
 async function connect(): Promise<Database> {
   const driver = env.databaseDriver;
@@ -19,14 +28,16 @@ async function connect(): Promise<Database> {
   return db;
 }
 
-/** Returns the shared database, creating the schema on first use. */
+/** Returns the shared database, creating or updating the schema on first use. */
 export function getDb(): Promise<Database> {
-  if (!globalCache.__laterhookDb) {
-    globalCache.__laterhookDb = connect().catch((err) => {
+  const key = schemaKey();
+  if (!globalCache.__laterhookDb || globalCache.__laterhookDb.key !== key) {
+    const promise = connect().catch((err) => {
       // Don't cache a failed connection.
-      globalCache.__laterhookDb = undefined;
+      if (globalCache.__laterhookDb?.promise === promise) globalCache.__laterhookDb = undefined;
       throw err;
     });
+    globalCache.__laterhookDb = { key, promise };
   }
-  return globalCache.__laterhookDb;
+  return globalCache.__laterhookDb.promise;
 }

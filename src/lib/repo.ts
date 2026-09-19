@@ -284,8 +284,8 @@ export async function listRequests(f: RequestFilters = {}): Promise<WebhookReque
   }
   if (f.search) {
     const like = `%${f.search}%`;
-    where.push("(body LIKE ? OR path LIKE ? OR headers LIKE ? OR query LIKE ? OR note LIKE ? OR endpoint_slug LIKE ?)");
-    params.push(like, like, like, like, like, like);
+    where.push("(body LIKE ? OR path LIKE ? OR headers LIKE ? OR query LIKE ? OR note LIKE ? OR endpoint_slug LIKE ? OR ip LIKE ?)");
+    params.push(like, like, like, like, like, like, like);
   }
   if (f.before) {
     where.push("received_at < ?");

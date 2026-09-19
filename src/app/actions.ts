@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { checkPassword, clearSessionCookie, isAuthenticated, setSessionCookie } from "@/lib/auth";
 import { deliver } from "@/lib/forward";
+import { ipLookupEnabled, lookupIp } from "@/lib/ipinfo";
 import { isEndpointColor } from "@/lib/palette";
 import {
   clearEndpointRequests,
@@ -160,4 +161,17 @@ export async function replayAction(id: string, targetUrl?: string): Promise<Acti
   revalidatePath("/", "layout");
   if (d.error) return { ok: false, error: d.error };
   return { ok: true, message: `Replayed → ${d.status_code} in ${d.duration_ms}ms` };
+}
+
+// ---------- ip info ----------
+
+export async function refreshIpInfoAction(requestId: string): Promise<ActionState> {
+  await guard();
+  if (!ipLookupEnabled()) return { ok: false, error: "IP lookups are not configured. Set IP_API_KEY." };
+  const req = await getRequest(requestId);
+  if (!req?.ip) return { ok: false, error: "This request has no source IP." };
+  const info = await lookupIp(req.ip, { force: true });
+  revalidatePath("/", "layout");
+  if (!info || info.status !== "success") return { ok: false, error: info?.message ?? "Lookup failed." };
+  return { ok: true, message: `Located in ${info.data.city ?? info.data.country ?? req.ip}` };
 }
