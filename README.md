@@ -194,9 +194,9 @@ D1 [read replication](https://developers.cloudflare.com/d1/best-practices/read-r
 `worker/` holds a tiny optional Worker (`laterhook-d1`) that runs queries through the binding with `withSession()`. Laterhook sends it the latest bookmark it has seen, so a warm function always reads its own writes. It also skips the REST API's per-call overhead.
 
 1. Enable read replication on the database (dashboard → D1 → Settings), if it isn't on already.
-2. Put your database id in `worker/wrangler.jsonc` (and `account_id` if your login sees several accounts).
+2. In `worker/wrangler.jsonc`, set your database id (and `account_id` if your login sees several accounts), and change the `routes` pattern to a hostname on a zone you own, or delete `routes` and `workers_dev: false` to use a `*.workers.dev` URL.
 3. `bun run worker:deploy`, then `bun run worker:secret` and paste a long random string.
-4. Set `LATERHOOK_D1_WORKER_URL` (the `*.workers.dev` URL) and `LATERHOOK_D1_WORKER_SECRET` in Vercel and `.env.local`.
+4. Set `LATERHOOK_D1_WORKER_URL` (e.g. `https://worker.laterhook.com`) and `LATERHOOK_D1_WORKER_SECRET` in Vercel and `.env.local`.
 
 Leave both variables unset to keep using the REST API. Wrangler prefers `CLOUDFLARE_API_TOKEN` from your shell over `wrangler login`. If your shell exports one for another account, run the scripts with `env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID`.
 
