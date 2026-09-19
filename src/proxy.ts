@@ -27,7 +27,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Everything except: webhook ingestion, Next internals, and static assets.
-    "/((?!webhooks|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml)$).*)",
+    // Everything except: webhook ingestion, Next internals, static assets, and the
+    // metadata routes that link-preview crawlers must be able to fetch without a session.
+    "/((?!webhooks|_next/static|_next/image|favicon.ico|icon|apple-icon|opengraph-image|twitter-image|manifest.webmanifest|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml)$).*)",
   ],
 };

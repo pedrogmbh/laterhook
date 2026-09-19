@@ -88,6 +88,14 @@ export const env = {
   get ipInfoTtlDays(): number {
     return Number(optional("IP_API_CACHE_DAYS") ?? 30);
   },
+  /** Absolute origin for metadata (Open Graph URLs). Falls back to Vercel's production URL, then localhost. */
+  get metadataBase(): URL {
+    const explicit = optional("LATERHOOK_PUBLIC_URL");
+    if (explicit) return new URL(explicit);
+    const vercel = optional("VERCEL_PROJECT_PRODUCTION_URL") ?? optional("VERCEL_URL");
+    if (vercel) return new URL(`https://${vercel}`);
+    return new URL(`http://localhost:${optional("PORT") ?? "3000"}`);
+  },
   /** Public base URL shown in the UI (e.g. https://hooks.example.com). Inferred from the request when unset. */
   get publicBaseUrl(): string | undefined {
     return optional("LATERHOOK_PUBLIC_URL");

@@ -8,6 +8,7 @@ import { LivePoller } from "@/components/live-poller";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/nav-link";
+import { LogoMark } from "@/components/logo";
 import type { Endpoint } from "@/lib/types";
 
 export function AppShell({
@@ -119,7 +120,7 @@ export function AppShell({
 function Brand() {
   return (
     <Link href="/" className="group flex items-center gap-2">
-      <span className="grid size-6 place-items-center bg-primary font-heading text-xs font-bold text-primary-foreground">L</span>
+      <LogoMark className="size-6" />
       <span className="font-heading text-sm font-bold tracking-[0.2em] uppercase">laterhook</span>
     </Link>
   );

@@ -93,6 +93,15 @@ after `IP_API_CACHE_DAYS`, default 30). You then get:
 Private and reserved addresses are recognised locally and never sent to the
 API. Without a key nothing is looked up and the UI just shows the raw IP.
 
+## Sharing the tool
+
+Link previews work out of the box: the app ships an SVG favicon, an Apple touch
+icon, a generated 1200×630 Open Graph / Twitter image, a web manifest and
+`robots.txt`. Set `LATERHOOK_PUBLIC_URL` so absolute Open Graph URLs point at
+your domain (on Vercel the production URL is used automatically). The dashboard
+is marked `noindex`; previews still render because the metadata routes are
+reachable without a session.
+
 ## Configuration
 
 See [`.env.example`](./.env.example) for every variable, including body size
