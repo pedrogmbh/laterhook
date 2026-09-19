@@ -3,6 +3,7 @@ import { env } from "@/lib/env";
 import { deliver } from "@/lib/forward";
 import { ipLookupEnabled, lookupIp } from "@/lib/ipinfo";
 import { ensureEndpoint, insertRequest } from "@/lib/repo";
+import { triageEnabled, triageRequest } from "@/lib/triage";
 import { checkSecret, expandTarget, fullPath, getEnabledRoutes, matchRoute } from "@/lib/routes";
 import type { BodyEncoding } from "@/lib/types";
 
@@ -130,13 +131,17 @@ async function capture(request: NextRequest, ctx: RouteContext<"/webhooks/[[...p
       user_agent: request.headers.get("user-agent"),
     });
 
-    if (ip && ipLookupEnabled()) {
+    // Enrichment runs after the response. The IP lookup goes first so AI triage can read the sender's network.
+    if ((ip && ipLookupEnabled()) || triageEnabled()) {
       after(async () => {
-        try {
-          await lookupIp(ip);
-        } catch (err) {
-          console.error("[laterhook] ip lookup failed", ip, err);
+        if (ip && ipLookupEnabled()) {
+          try {
+            await lookupIp(ip);
+          } catch (err) {
+            console.error("[laterhook] ip lookup failed", ip, err);
+          }
         }
+        if (triageEnabled()) await triageRequest(stored);
       });
     }
 

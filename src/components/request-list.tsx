@@ -6,9 +6,10 @@ import { MethodBadge } from "@/components/method-badge";
 import { StatusPill } from "@/components/status-pill";
 import { TimeAgo } from "@/components/time-ago";
 import { EmptyState } from "@/components/empty-state";
+import { TriageBadges } from "@/components/triage-badges";
 import { formatBytes, shortContentType } from "@/lib/format";
 import { flagEmoji, originLabel } from "@/lib/ipinfo";
-import type { Endpoint, IpInfo, Route, WebhookRequest } from "@/lib/types";
+import type { Endpoint, IpInfo, RequestInsight, Route, WebhookRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function bodyPreview(r: WebhookRequest): string | null {
@@ -26,6 +27,7 @@ export function RequestList({
   highlightSince,
   ipInfo,
   routesById,
+  insights,
 }: {
   requests: WebhookRequest[];
   endpointsById: Map<string, Endpoint>;
@@ -33,6 +35,8 @@ export function RequestList({
   ipInfo?: Map<string, IpInfo>;
   /** Routes by id; when provided, rows show which route matched. */
   routesById?: Map<string, Route>;
+  /** AI triage by request id; when provided, rows show sender, event and attention chips. */
+  insights?: Map<string, RequestInsight>;
   showEndpoint?: boolean;
   emptyTitle?: string;
   emptyBody?: React.ReactNode;
@@ -70,6 +74,7 @@ export function RequestList({
                     /{r.endpoint_slug}
                     {r.path ? `/${r.path}` : ""}
                   </span>
+                  <TriageBadges insight={insights?.get(r.id)} />
                   {r.rejected && (
                     <span className="hue-chip shrink-0 border px-1 text-[10px] font-semibold tracking-wider uppercase" style={{ "--h": 15 } as React.CSSProperties} title={r.rejected_reason ?? "Rejected"}>
                       rejected

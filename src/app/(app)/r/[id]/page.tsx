@@ -21,6 +21,8 @@ import { getEndpointById, getRequest, getRoute, listDeliveries, listTags, update
 import { Button } from "@/components/ui/button";
 import { expandTarget, rematch } from "@/lib/routes";
 import { IpPanel } from "@/components/ip-panel";
+import { TriagePanel } from "@/components/triage-panel";
+import { ensureTriage, triageEnabled } from "@/lib/triage";
 
 export async function generateMetadata(props: PageProps<"/r/[id]">): Promise<Metadata> {
   const { id } = await props.params;
@@ -34,13 +36,14 @@ export default async function RequestPage(props: PageProps<"/r/[id]">) {
   const { id } = await props.params;
   const request = await getRequest(id);
   if (!request) notFound();
-  // lookupIp is cached per IP; the network call only happens the first time an address is seen.
-  const [endpoint, deliveries, tags, ipInfo, route] = await Promise.all([
+  // lookupIp is cached per IP and ensureTriage per request; each network call only happens the first time.
+  const [endpoint, deliveries, tags, ipInfo, route, insight] = await Promise.all([
     getEndpointById(request.endpoint_id),
     listDeliveries(request.id),
     listTags(),
     lookupIp(request.ip),
     request.route_id ? getRoute(request.route_id) : Promise.resolve(null),
+    ensureTriage(request),
   ]);
   const routeMatch = route ? rematch(route, request) : null;
   const defaultTarget = route?.forward_url ? (routeMatch ? expandTarget(route.forward_url, routeMatch) : route.forward_url) : (endpoint?.forward_url ?? null);
@@ -217,6 +220,7 @@ export default async function RequestPage(props: PageProps<"/r/[id]">) {
         </div>
 
         <aside className="space-y-6">
+          <TriagePanel insight={insight} enabled={triageEnabled()} requestId={request.id} />
           <div className="space-y-3">
             <SectionLabel>Details</SectionLabel>
             <dl className="divide-y border text-xs">

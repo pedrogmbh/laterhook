@@ -9,7 +9,9 @@ import { SectionLabel } from "@/components/section-label";
 import { Sparkline } from "@/components/sparkline";
 import { Button } from "@/components/ui/button";
 import { getBaseUrl } from "@/lib/base-url";
-import { countUnrouted, getEndpointSparklines, getStats, listEndpoints, listRequests, listRoutes } from "@/lib/repo";
+import { countUnrouted, countUntriaged, getEndpointSparklines, getInsightsMany, getStats, getTriageSummary, listEndpoints, listRequests, listRoutes } from "@/lib/repo";
+import { triageEnabled } from "@/lib/triage";
+import { TriageSummaryPanel } from "@/components/triage-summary";
 import { getDb } from "@/lib/db";
 import { getCachedIpInfoMany, ipLookupEnabled, topOrigins } from "@/lib/ipinfo";
 import { OriginsPanel } from "@/components/origins-panel";
@@ -31,6 +33,12 @@ export default async function OverviewPage() {
     topOrigins(24),
     listRoutes(),
     countUnrouted(),
+  ]);
+  const triageOn = triageEnabled();
+  const [insights, triage, untriaged] = await Promise.all([
+    getInsightsMany(recent.map((r) => r.id)),
+    triageOn ? getTriageSummary(24) : null,
+    triageOn ? countUntriaged() : 0,
   ]);
   const routesById = new Map(routes.map((r) => [r.id, r]));
   const ipEnabled = ipLookupEnabled();
@@ -94,6 +102,8 @@ export default async function OverviewPage() {
         {ipEnabled && <OriginsPanel origins={origins} total={stats.last24h} />}
       </section>
 
+      {triage && <TriageSummaryPanel summary={triage} untriaged={untriaged} />}
+
       {/* Endpoints */}
       <section className="space-y-3">
         <SectionLabel>Endpoints</SectionLabel>
@@ -128,7 +138,7 @@ export default async function OverviewPage() {
         >
           Recent
         </SectionLabel>
-        <RequestList requests={recent} endpointsById={byId} ipInfo={ipInfo} routesById={routesById} emptyTitle="No requests yet" emptyBody="The first webhook you send will show up here within a few seconds." />
+        <RequestList requests={recent} endpointsById={byId} ipInfo={ipInfo} routesById={routesById} insights={insights} emptyTitle="No requests yet" emptyBody="The first webhook you send will show up here within a few seconds." />
       </section>
     </div>
   );

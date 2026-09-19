@@ -90,6 +90,25 @@ export const SCHEMA_STATEMENTS: string[] = [
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
+  // One AI triage result per request (TypeSafe Jev via Vercel AI Gateway). `answers` keeps the raw typed answers with probabilities.
+  `CREATE TABLE IF NOT EXISTS request_insights (
+    request_id TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    model TEXT,
+    event TEXT,
+    source TEXT,
+    kind TEXT,
+    attention REAL,
+    failure REAL,
+    sensitive REAL,
+    answers TEXT NOT NULL DEFAULT '{}',
+    confidence TEXT NOT NULL DEFAULT '{}',
+    error TEXT,
+    input_tokens INTEGER,
+    duration_ms INTEGER,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_insights_created ON request_insights(created_at DESC)`,
 ];
 
 /**

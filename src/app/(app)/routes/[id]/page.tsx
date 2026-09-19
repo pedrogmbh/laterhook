@@ -6,13 +6,14 @@ import { FiltersBar } from "@/components/filters-bar";
 import { MethodBadge } from "@/components/method-badge";
 import { PageHeader } from "@/components/page-header";
 import { RequestList } from "@/components/request-list";
+import { triageEnabled } from "@/lib/triage";
 import { RouteDangerZone, RouteEnabledSwitch } from "@/components/route-actions";
 import { RouteForm } from "@/components/route-form";
 import { SectionLabel } from "@/components/section-label";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getCachedIpInfoMany, ipLookupEnabled } from "@/lib/ipinfo";
-import { getRoute, listEndpoints, listRequests, listTags } from "@/lib/repo";
+import { getRoute, listEndpoints, listRequests, listTags, getInsightsMany } from "@/lib/repo";
 
 export async function generateMetadata(props: PageProps<"/routes/[id]">): Promise<Metadata> {
   const { id } = await props.params;
@@ -34,6 +35,9 @@ export default async function RoutePage(props: PageProps<"/routes/[id]">) {
     unread: first(sp.unread) === "1",
     rejected: first(sp.rejected) === "1",
     tag: first(sp.tag),
+    needsAction: first(sp.action) === "1",
+    hideNoise: first(sp.hidenoise) === "1",
+    source: first(sp.source),
     search: first(sp.q),
     before: first(sp.before),
     limit: PAGE + 1,
@@ -43,6 +47,7 @@ export default async function RoutePage(props: PageProps<"/routes/[id]">) {
   const requests = hasMore ? rows.slice(0, PAGE) : rows;
   const byId = new Map(endpoints.map((e) => [e.id, e]));
   const ipInfo = ipLookupEnabled() ? await getCachedIpInfoMany(requests.map((r) => r.ip)) : undefined;
+  const insights = await getInsightsMany(requests.map((r) => r.id));
   const tab = first(sp.tab) === "settings" ? "settings" : "requests";
   const linked = first(sp.linked);
   const nextParams = new URLSearchParams();
@@ -88,9 +93,9 @@ export default async function RoutePage(props: PageProps<"/routes/[id]">) {
         </TabsList>
         <TabsContent value="requests" className="space-y-5 pt-2">
           <Suspense>
-            <FiltersBar endpoints={endpoints} tags={tags} showRouted={false} />
+            <FiltersBar endpoints={endpoints} tags={tags} showRouted={false} triage={triageEnabled()} />
           </Suspense>
-          <RequestList requests={requests} endpointsById={byId} ipInfo={ipInfo} emptyTitle="Nothing matched yet" emptyBody="Requests whose path matches this pattern will be listed here as they arrive." />
+          <RequestList requests={requests} endpointsById={byId} ipInfo={ipInfo} insights={insights} emptyTitle="Nothing matched yet" emptyBody="Requests whose path matches this pattern will be listed here as they arrive." />
           {hasMore && (
             <div className="flex justify-center">
               <Button nativeButton={false} render={<Link href={`/routes/${route.id}?${nextParams}`} />} variant="outline" size="sm">

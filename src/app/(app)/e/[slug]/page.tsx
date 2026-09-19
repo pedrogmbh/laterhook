@@ -10,12 +10,13 @@ import { FiltersBar } from "@/components/filters-bar";
 import { MarkAllReadButton } from "@/components/mark-all-read";
 import { PageHeader } from "@/components/page-header";
 import { RequestList } from "@/components/request-list";
+import { triageEnabled } from "@/lib/triage";
 import { Sparkline } from "@/components/sparkline";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getBaseUrl } from "@/lib/base-url";
 import { COLOR_OKLCH } from "@/lib/palette";
-import { getEndpointBySlug, getEndpointSparklines, listRequests, listTags } from "@/lib/repo";
+import { getEndpointBySlug, getEndpointSparklines, listRequests, listTags, getInsightsMany } from "@/lib/repo";
 import { getDb } from "@/lib/db";
 import { getCachedIpInfoMany, ipLookupEnabled } from "@/lib/ipinfo";
 
@@ -39,6 +40,9 @@ export default async function EndpointPage(props: PageProps<"/e/[slug]">) {
     unread: first(sp.unread) === "1",
     rejected: first(sp.rejected) === "1",
     tag: first(sp.tag),
+    needsAction: first(sp.action) === "1",
+    hideNoise: first(sp.hidenoise) === "1",
+    source: first(sp.source),
     search: first(sp.q),
     before: first(sp.before),
     limit: PAGE + 1,
@@ -56,6 +60,7 @@ export default async function EndpointPage(props: PageProps<"/e/[slug]">) {
   const requests = hasMore ? rows.slice(0, PAGE) : rows;
   const byId = new Map([[endpoint.id, endpoint]]);
   const ipInfo = ipLookupEnabled() ? await getCachedIpInfoMany(requests.map((r) => r.ip)) : undefined;
+  const insights = await getInsightsMany(requests.map((r) => r.id));
   const ingestUrl = `${baseUrl}/webhooks/${endpoint.slug}`;
   const tab = first(sp.tab) === "settings" ? "settings" : "requests";
 
@@ -110,14 +115,15 @@ export default async function EndpointPage(props: PageProps<"/e/[slug]">) {
         </TabsList>
         <TabsContent value="requests" className="space-y-5 pt-2">
           <Suspense>
-            <FiltersBar endpoints={[]} tags={tags} showEndpoint={false} showRouted={false} />
+            <FiltersBar endpoints={[]} tags={tags} showEndpoint={false} showRouted={false} triage={triageEnabled()} />
           </Suspense>
           <RequestList
             requests={requests}
             endpointsById={byId}
             ipInfo={ipInfo}
+            insights={insights}
             showEndpoint={false}
-            emptyTitle={filters.search || filters.method || filters.tag || filters.starred || filters.unread ? "No matches" : "Waiting for the first request"}
+            emptyTitle={filters.search || filters.method || filters.tag || filters.starred || filters.unread || filters.needsAction || filters.hideNoise || filters.source ? "No matches" : "Waiting for the first request"}
             emptyBody={
               <>
                 Send anything to <span className="font-mono text-foreground">{ingestUrl}</span>. Deeper paths like <span className="font-mono">/{endpoint.slug}/stripe/live</span> are captured too.

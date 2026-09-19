@@ -5,9 +5,11 @@ import { FiltersBar } from "@/components/filters-bar";
 import { MarkAllReadButton } from "@/components/mark-all-read";
 import { PageHeader } from "@/components/page-header";
 import { RequestList } from "@/components/request-list";
+import { triageEnabled } from "@/lib/triage";
+import { sourceLabel } from "@/lib/triage-meta";
 import { Button } from "@/components/ui/button";
 import { getCachedIpInfoMany, ipLookupEnabled } from "@/lib/ipinfo";
-import { getEndpointBySlug, getStats, listEndpoints, listRequests, listRoutes, listTags } from "@/lib/repo";
+import { getEndpointBySlug, getStats, listEndpoints, listRequests, listRoutes, listTags, getInsightsMany } from "@/lib/repo";
 
 export const metadata: Metadata = { title: "Inbox" };
 
@@ -29,6 +31,9 @@ export default async function InboxPage(props: PageProps<"/inbox">) {
     unrouted: first(sp.unrouted) === "1",
     rejected: first(sp.rejected) === "1",
     tag: first(sp.tag),
+    needsAction: first(sp.action) === "1",
+    hideNoise: first(sp.hidenoise) === "1",
+    source: first(sp.source),
     search: first(sp.q),
     before: first(sp.before),
     limit: PAGE + 1,
@@ -39,6 +44,7 @@ export default async function InboxPage(props: PageProps<"/inbox">) {
   const requests = hasMore ? rows.slice(0, PAGE) : rows;
   const byId = new Map(endpoints.map((e) => [e.id, e]));
   const ipInfo = ipLookupEnabled() ? await getCachedIpInfoMany(requests.map((r) => r.ip)) : undefined;
+  const insights = await getInsightsMany(requests.map((r) => r.id));
 
   const nextParams = new URLSearchParams();
   for (const [k, v] of Object.entries(sp)) if (typeof v === "string" && k !== "before") nextParams.set(k, v);
@@ -48,19 +54,20 @@ export default async function InboxPage(props: PageProps<"/inbox">) {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Inbox"
-        title={filters.starred ? "Starred" : filters.unrouted ? "Unrouted" : filters.rejected ? "Rejected" : "Everything"}
+        title={filters.needsAction ? "Needs action" : filters.source ? `From ${sourceLabel(filters.source)}` : filters.starred ? "Starred" : filters.unrouted ? "Unrouted" : filters.rejected ? "Rejected" : "Everything"}
         description={`${stats.total} requests across ${stats.endpoints} endpoints`}
         actions={<MarkAllReadButton count={stats.unread} />}
       />
       <Suspense>
-        <FiltersBar endpoints={endpoints} tags={tags} />
+        <FiltersBar endpoints={endpoints} tags={tags} triage={triageEnabled()} />
       </Suspense>
       <RequestList
         requests={requests}
         endpointsById={byId}
         ipInfo={ipInfo}
+        insights={insights}
         routesById={routesById}
-        emptyTitle={filters.search || filters.method || filters.tag || filters.starred || filters.unread || filters.unrouted || filters.rejected || endpoint ? "No matches" : "Nothing captured yet"}
+        emptyTitle={filters.search || filters.method || filters.tag || filters.starred || filters.unread || filters.unrouted || filters.rejected || filters.needsAction || filters.hideNoise || filters.source || endpoint ? "No matches" : "Nothing captured yet"}
         emptyBody={filters.search ? `Nothing contains “${filters.search}”.` : undefined}
       />
       {hasMore && (

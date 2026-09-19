@@ -88,6 +88,7 @@ That's it. No endpoint to create, no schema to think about. The endpoint `my-pro
 - **Routes.** Regex + method matching, forwarding with capture groups and extra headers, header secrets, response overrides, auto-tags, backfill of earlier requests, "Register a route like this" from any unrouted request or endpoint.
 - **Replay.** Re-send any stored request to any URL. Every attempt is recorded with status, latency and response body.
 - **Origins.** Optional ip-api.com enrichment: flag, city, ISP, ASN, timezone, proxy/VPN and datacenter flags, plus a by-country breakdown on the overview.
+- **AI triage.** Optional, via [TypeSafe AI](https://docs.typesafe.ai/introduction)'s Jev on [Vercel AI Gateway](https://vercel.com/ai-gateway/models/jev): every request is labelled with its sender (Stripe, GitHub, Slack…), kind (event, test, handshake, scanner probe), how much attention it needs, and whether it reports a failure or carries personal data. Filter by **Needs action**, **Hide noise** or sender. See the 24h triage breakdown on the overview.
 - **Live.** New requests appear with a toast while the dashboard is open.
 - **Sharing-ready.** Favicon set, Open Graph and Twitter images, web manifest, theme colours. Marked `noindex`.
 - **Single password.** Set it in env, done. No accounts, no OAuth dance.
@@ -143,6 +144,7 @@ flowchart LR
 - **Routes** are tested against the whole path, e.g. `shop/stripe/live`, in priority order.
 - Forwarding runs **after the response is sent**, so senders always get a fast acknowledgement.
 - Every forward and replay becomes a **delivery** row: status, duration, response headers and body.
+- With AI triage on, each request is also judged **after the response**: one Jev call answers five typed questions (a Choice for sender, a Choice for kind, a Score for attention, and yes/no probabilities for failure and personal data) in about half a second. Header secrets are redacted before anything leaves laterhook. The event name (`invoice.paid`, `pull_request.opened`) is read by code, not guessed by the model.
 
 ## Routes make it permanent
 
@@ -172,6 +174,9 @@ All variables are documented in [`.env.example`](./.env.example).
 | `SQLITE_PATH` | no | Local file for the SQLite driver. Default `.data/laterhook.db`. |
 | `IP_API_KEY` | no | [ip-api.com](https://ip-api.com) Pro key. Enables sender geolocation. |
 | `IP_API_CACHE_DAYS` | no | Days before a cached IP lookup refreshes. Default 30. |
+| `AI_GATEWAY_API_KEY` | no | [Vercel AI Gateway](https://vercel.com/ai-gateway) key. With the next variable, enables AI triage. |
+| `TYPESAFE_AI_ENABLED` | no | `true` turns AI triage (TypeSafe Jev) on. Both must be set. |
+| `TYPESAFE_AI_MODEL` | no | Gateway model id for triage. Default `typesafe-ai/jev`. |
 | `LATERHOOK_PUBLIC_URL` | no | Public origin for URLs in the UI and Open Graph tags. Inferred on Vercel. |
 | `LATERHOOK_MAX_BODY_BYTES` | no | Largest stored body. Default 512 KiB, larger bodies are truncated. |
 | `LATERHOOK_FORWARD_TIMEOUT_MS` | no | Forward and replay timeout. Default 10 s. |

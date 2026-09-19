@@ -88,6 +88,18 @@ export const env = {
   get ipInfoTtlDays(): number {
     return Number(optional("IP_API_CACHE_DAYS") ?? 30);
   },
+  /** Vercel AI Gateway key. Together with TYPESAFE_AI_ENABLED it turns on AI triage. Optional. */
+  get aiGatewayApiKey(): string | undefined {
+    return optional("AI_GATEWAY_API_KEY");
+  },
+  /** Opt-in switch for TypeSafe AI (Jev) triage: "true", "1", "yes" or "on". */
+  get typesafeAiEnabled(): boolean {
+    return /^(1|true|yes|on)$/i.test(optional("TYPESAFE_AI_ENABLED") ?? "");
+  },
+  /** Gateway model id used for triage. Default "typesafe-ai/jev". */
+  get typesafeAiModel(): string {
+    return optional("TYPESAFE_AI_MODEL") ?? "typesafe-ai/jev";
+  },
   /** Absolute origin for metadata (Open Graph URLs). Falls back to Vercel's production URL, then localhost. */
   get metadataBase(): URL {
     const explicit = optional("LATERHOOK_PUBLIC_URL");

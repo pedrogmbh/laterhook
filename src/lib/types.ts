@@ -105,6 +105,12 @@ export interface RequestFilters {
   /** Only requests that matched no route. */
   unrouted?: boolean;
   rejected?: boolean;
+  /** AI triage: only requests judged to need action. */
+  needsAction?: boolean;
+  /** AI triage: drop scanner/bot probes. */
+  hideNoise?: boolean;
+  /** AI triage: sender service key. */
+  source?: string;
   limit?: number;
   before?: string; // received_at cursor
 }
@@ -154,4 +160,37 @@ export interface IpInfo {
   message: string | null;
   data: IpInfoData;
   fetched_at: string;
+}
+
+/** What a request is, as judged by AI triage. */
+export type TriageKind = "event" | "test" | "handshake" | "probe" | "other";
+
+/**
+ * AI triage for one request (TypeSafe Jev via Vercel AI Gateway). The typed
+ * judgments are stored raw so thresholds can change without re-running
+ * inference; `event` is extracted by code, not the model.
+ */
+export interface RequestInsight {
+  request_id: string;
+  status: "ok" | "error";
+  model: string | null;
+  /** Event name read from headers/body, e.g. `invoice.paid` or `push`. */
+  event: string | null;
+  /** Sender service key from TRIAGE_SOURCES (most likely option). */
+  source: string | null;
+  kind: TriageKind | null;
+  /** Position on the attention rubric, 0 (routine) to 2 (needs action). */
+  attention: number | null;
+  /** P(the request reports a failure). */
+  failure: number | null;
+  /** P(the body or query carries personal data or secrets). */
+  sensitive: number | null;
+  /** Full probability distributions per question id. */
+  probabilities: Record<string, Record<string, number>>;
+  /** TypeSafe's Choice/Score confidence per question id. */
+  confidence: Record<string, number>;
+  error: string | null;
+  input_tokens: number | null;
+  duration_ms: number | null;
+  created_at: string;
 }

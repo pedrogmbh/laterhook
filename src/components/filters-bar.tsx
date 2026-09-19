@@ -3,18 +3,32 @@
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Search01Icon, StarIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { Search01Icon, StarIcon, Cancel01Icon, SparklesIcon } from "@hugeicons/core-free-icons";
 import { EndpointDot } from "@/components/endpoint-dot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { METHODS } from "@/lib/palette";
+import { sourceLabel } from "@/lib/triage-meta";
 import type { Endpoint } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const ALL = "__all__";
 
-export function FiltersBar({ endpoints, tags, showEndpoint = true, showRouted = true }: { endpoints: Endpoint[]; tags: string[]; showEndpoint?: boolean; showRouted?: boolean }) {
+export function FiltersBar({
+  endpoints,
+  tags,
+  showEndpoint = true,
+  showRouted = true,
+  triage = false,
+}: {
+  endpoints: Endpoint[];
+  tags: string[];
+  showEndpoint?: boolean;
+  showRouted?: boolean;
+  /** Show the AI triage toggles (needs action, hide noise). */
+  triage?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -41,7 +55,10 @@ export function FiltersBar({ endpoints, tags, showEndpoint = true, showRouted = 
   const unread = params.get("unread") === "1";
   const unrouted = params.get("unrouted") === "1";
   const rejected = params.get("rejected") === "1";
-  const active = ["q", "method", "endpoint", "tag", "starred", "unread", "unrouted", "rejected"].some((k) => params.get(k));
+  const action = params.get("action") === "1";
+  const hideNoise = params.get("hidenoise") === "1";
+  const source = params.get("source");
+  const active = ["q", "method", "endpoint", "tag", "starred", "unread", "unrouted", "rejected", "action", "hidenoise", "source"].some((k) => params.get(k));
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -120,6 +137,23 @@ export function FiltersBar({ endpoints, tags, showEndpoint = true, showRouted = 
       <Button type="button" variant="outline" size="sm" aria-pressed={rejected} className={cn(rejected && "border-destructive text-destructive")} onClick={() => set({ rejected: rejected ? null : "1" })} title="Requests that failed a route's header secret">
         Rejected
       </Button>
+      {triage && (
+        <>
+          <Button type="button" variant="outline" size="sm" aria-pressed={action} className={cn(action && "border-destructive text-destructive")} onClick={() => set({ action: action ? null : "1" })} title="AI triage: failures, disputes, alerts and other events that need you">
+            <HugeiconsIcon icon={SparklesIcon} strokeWidth={2} data-icon="inline-start" />
+            Needs action
+          </Button>
+          <Button type="button" variant="outline" size="sm" aria-pressed={hideNoise} className={cn(hideNoise && "border-primary")} onClick={() => set({ hidenoise: hideNoise ? null : "1" })} title="AI triage: hide scanners, bots and other probes">
+            Hide noise
+          </Button>
+        </>
+      )}
+      {source && (
+        <Button type="button" variant="outline" size="sm" aria-pressed className="border-primary" onClick={() => set({ source: null })} title="Remove sender filter">
+          From {sourceLabel(source)}
+          <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} data-icon="inline-end" />
+        </Button>
+      )}
       {active && (
         <Button type="button" variant="ghost" size="sm" onClick={() => start(() => router.replace(pathname))}>
           <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} data-icon="inline-start" />

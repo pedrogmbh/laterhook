@@ -1,12 +1,15 @@
 import { getDb, type SqlValue } from "@/lib/db";
 import { newId } from "@/lib/ids";
 import { isEndpointColor, pickColorFor, type EndpointColor } from "@/lib/palette";
+import { FLAG_MIN, NEEDS_ACTION_MIN } from "@/lib/triage-meta";
 import type {
   Delivery,
   Endpoint,
   RequestFilters,
+  RequestInsight,
   Route,
   Stats,
+  TriageKind,
   WebhookRequest,
 } from "@/lib/types";
 
@@ -126,6 +129,28 @@ function toDelivery(r: Row): Delivery {
   };
 }
 
+function toInsight(r: Row): RequestInsight {
+  const kind = str(r.kind);
+  const optNum = (v: unknown) => (v == null ? null : num(v));
+  return {
+    request_id: String(r.request_id),
+    status: r.status === "ok" ? "ok" : "error",
+    model: str(r.model),
+    event: str(r.event),
+    source: str(r.source),
+    kind: kind === "event" || kind === "test" || kind === "handshake" || kind === "probe" || kind === "other" ? kind : null,
+    attention: optNum(r.attention),
+    failure: optNum(r.failure),
+    sensitive: optNum(r.sensitive),
+    probabilities: json<Record<string, Record<string, number>>>(r.answers, {}),
+    confidence: json<Record<string, number>>(r.confidence, {}),
+    error: str(r.error),
+    input_tokens: r.input_tokens == null ? null : num(r.input_tokens),
+    duration_ms: r.duration_ms == null ? null : num(r.duration_ms),
+    created_at: String(r.created_at),
+  };
+}
+
 const now = () => new Date().toISOString();
 
 // ---------- endpoints ----------
@@ -205,6 +230,7 @@ export async function deleteEndpoint(id: string): Promise<void> {
   const db = await getDb();
   await db.batch([
     { sql: `DELETE FROM deliveries WHERE endpoint_id = ?`, params: [id] },
+    { sql: `DELETE FROM request_insights WHERE request_id IN (SELECT id FROM requests WHERE endpoint_id = ?)`, params: [id] },
     { sql: `DELETE FROM requests WHERE endpoint_id = ?`, params: [id] },
     { sql: `DELETE FROM endpoints WHERE id = ?`, params: [id] },
   ]);
@@ -332,6 +358,15 @@ export async function listRequests(f: RequestFilters = {}): Promise<WebhookReque
     where.push("route_id = ?");
     params.push(f.routeId);
   }
+  if (f.needsAction) {
+    where.push(`id IN (SELECT request_id FROM request_insights WHERE status = 'ok' AND kind != 'probe' AND attention >= ?)`);
+    params.push(NEEDS_ACTION_MIN);
+  }
+  if (f.hideNoise) where.push(`id NOT IN (SELECT request_id FROM request_insights WHERE kind = 'probe')`);
+  if (f.source) {
+    where.push(`id IN (SELECT request_id FROM request_insights WHERE source = ?)`);
+    params.push(f.source);
+  }
   if (f.tag) {
     where.push("tags LIKE ?");
     params.push(`%${JSON.stringify(f.tag)}%`);
@@ -404,6 +439,7 @@ export async function deleteRequest(id: string): Promise<void> {
   if (!req) return;
   await db.batch([
     { sql: `DELETE FROM deliveries WHERE request_id = ?`, params: [id] },
+    { sql: `DELETE FROM request_insights WHERE request_id = ?`, params: [id] },
     { sql: `DELETE FROM requests WHERE id = ?`, params: [id] },
     { sql: `UPDATE endpoints SET request_count = MAX(request_count - 1, 0) WHERE id = ?`, params: [req.endpoint_id] },
   ]);
@@ -413,6 +449,7 @@ export async function clearEndpointRequests(endpointId: string): Promise<void> {
   const db = await getDb();
   await db.batch([
     { sql: `DELETE FROM deliveries WHERE endpoint_id = ?`, params: [endpointId] },
+    { sql: `DELETE FROM request_insights WHERE request_id IN (SELECT id FROM requests WHERE endpoint_id = ?)`, params: [endpointId] },
     { sql: `DELETE FROM requests WHERE endpoint_id = ?`, params: [endpointId] },
     { sql: `UPDATE endpoints SET request_count = 0 WHERE id = ?`, params: [endpointId] },
   ]);
@@ -637,5 +674,138 @@ export async function assignRoute(routeId: string, requestIds: string[]): Promis
 export async function countUnrouted(): Promise<number> {
   const db = await getDb();
   const { rows } = await db.query<{ n: number }>(`SELECT COUNT(*) AS n FROM requests WHERE route_id IS NULL`);
+  return num(rows[0]?.n);
+}
+
+// ---------- AI triage ----------
+
+export interface InsightInput {
+  request_id: string;
+  status: RequestInsight["status"];
+  model: string | null;
+  event: string | null;
+  source?: string | null;
+  kind?: TriageKind | null;
+  attention?: number | null;
+  failure?: number | null;
+  sensitive?: number | null;
+  probabilities?: RequestInsight["probabilities"];
+  confidence?: RequestInsight["confidence"];
+  error?: string | null;
+  input_tokens?: number | null;
+  duration_ms?: number | null;
+}
+
+export async function upsertInsight(i: InsightInput): Promise<RequestInsight> {
+  const db = await getDb();
+  const ts = now();
+  const row = {
+    request_id: i.request_id,
+    status: i.status,
+    model: i.model,
+    event: i.event,
+    source: i.source ?? null,
+    kind: i.kind ?? null,
+    attention: i.attention ?? null,
+    failure: i.failure ?? null,
+    sensitive: i.sensitive ?? null,
+    answers: JSON.stringify(i.probabilities ?? {}),
+    confidence: JSON.stringify(i.confidence ?? {}),
+    error: i.error ?? null,
+    input_tokens: i.input_tokens ?? null,
+    duration_ms: i.duration_ms ?? null,
+    created_at: ts,
+  };
+  const cols = Object.keys(row);
+  await db.query(
+    `INSERT INTO request_insights (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})
+     ON CONFLICT(request_id) DO UPDATE SET ${cols.filter((c) => c !== "request_id").map((c) => `${c} = excluded.${c}`).join(", ")}`,
+    Object.values(row),
+  );
+  return toInsight(row);
+}
+
+export async function getInsight(requestId: string): Promise<RequestInsight | null> {
+  const db = await getDb();
+  const { rows } = await db.query<Row>(`SELECT * FROM request_insights WHERE request_id = ? LIMIT 1`, [requestId]);
+  return rows[0] ? toInsight(rows[0]) : null;
+}
+
+export async function getInsightsMany(requestIds: string[]): Promise<Map<string, RequestInsight>> {
+  const out = new Map<string, RequestInsight>();
+  const unique = [...new Set(requestIds)];
+  if (!unique.length) return out;
+  const db = await getDb();
+  for (let i = 0; i < unique.length; i += 100) {
+    const chunk = unique.slice(i, i + 100);
+    const { rows } = await db.query<Row>(`SELECT * FROM request_insights WHERE request_id IN (${chunk.map(() => "?").join(",")})`, chunk);
+    for (const r of rows) {
+      const insight = toInsight(r);
+      out.set(insight.request_id, insight);
+    }
+  }
+  return out;
+}
+
+/** Most recent requests never triaged successfully (missing or failed), for backfilling. */
+export async function listUntriagedRequests(limit = 50): Promise<WebhookRequest[]> {
+  const db = await getDb();
+  const { rows } = await db.query<Row>(
+    `SELECT * FROM requests WHERE id NOT IN (SELECT request_id FROM request_insights WHERE status = 'ok')
+     ORDER BY received_at DESC LIMIT ${Math.min(Math.max(limit, 1), 200)}`,
+  );
+  return rows.map(toRequest);
+}
+
+export interface TriageSummary {
+  requests: number;
+  triaged: number;
+  needsAction: number;
+  failures: number;
+  sensitive: number;
+  kinds: { kind: TriageKind; count: number }[];
+  sources: { source: string; count: number }[];
+}
+
+/** Triage counts over requests received in the last `hours`. */
+export async function getTriageSummary(hours = 24): Promise<TriageSummary> {
+  const db = await getDb();
+  const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+  const recent = `SELECT id FROM requests WHERE received_at >= ?`;
+  const [totals, kinds, sources] = await Promise.all([
+    db.query<{ requests: number; triaged: number; action: number; failures: number; sensitive: number }>(
+      `SELECT
+         (SELECT COUNT(*) FROM requests WHERE received_at >= ?) AS requests,
+         COUNT(*) AS triaged,
+         SUM(CASE WHEN kind != 'probe' AND attention >= ? THEN 1 ELSE 0 END) AS action,
+         SUM(CASE WHEN failure >= ? THEN 1 ELSE 0 END) AS failures,
+         SUM(CASE WHEN sensitive >= ? THEN 1 ELSE 0 END) AS sensitive
+       FROM request_insights WHERE status = 'ok' AND request_id IN (${recent})`,
+      [since, NEEDS_ACTION_MIN, FLAG_MIN, FLAG_MIN, since],
+    ),
+    db.query<{ kind: TriageKind; n: number }>(
+      `SELECT kind, COUNT(*) AS n FROM request_insights WHERE status = 'ok' AND kind IS NOT NULL AND request_id IN (${recent}) GROUP BY kind ORDER BY n DESC`,
+      [since],
+    ),
+    db.query<{ source: string; n: number }>(
+      `SELECT source, COUNT(*) AS n FROM request_insights WHERE status = 'ok' AND source IS NOT NULL AND request_id IN (${recent}) GROUP BY source ORDER BY n DESC LIMIT 8`,
+      [since],
+    ),
+  ]);
+  const t = totals.rows[0];
+  return {
+    requests: num(t?.requests),
+    triaged: num(t?.triaged),
+    needsAction: num(t?.action),
+    failures: num(t?.failures),
+    sensitive: num(t?.sensitive),
+    kinds: kinds.rows.map((r) => ({ kind: r.kind, count: num(r.n) })),
+    sources: sources.rows.map((r) => ({ source: String(r.source), count: num(r.n) })),
+  };
+}
+
+export async function countUntriaged(): Promise<number> {
+  const db = await getDb();
+  const { rows } = await db.query<{ n: number }>(`SELECT COUNT(*) AS n FROM requests WHERE id NOT IN (SELECT request_id FROM request_insights WHERE status = 'ok')`);
   return num(rows[0]?.n);
 }

@@ -6,6 +6,8 @@ import { checkPassword, clearSessionCookie, isAuthenticated, setSessionCookie } 
 import { deliver } from "@/lib/forward";
 import { ipLookupEnabled, lookupIp } from "@/lib/ipinfo";
 import { isEndpointColor } from "@/lib/palette";
+import { triageEnabled, triageMany, triageRequest } from "@/lib/triage";
+import { isRateLimited, sourceLabel, TRIAGE_KINDS } from "@/lib/triage-meta";
 import {
   assignRoute,
   clearEndpointRequests,
@@ -17,6 +19,7 @@ import {
   getRequest,
   getRoute,
   listUnroutedForBackfill,
+  listUntriagedRequests,
   markAllRead,
   updateEndpoint,
   updateRequest,
@@ -192,6 +195,37 @@ export async function refreshIpInfoAction(requestId: string): Promise<ActionStat
   revalidatePath("/", "layout");
   if (!info || info.status !== "success") return { ok: false, error: info?.message ?? "Lookup failed." };
   return { ok: true, message: `Located in ${info.data.city ?? info.data.country ?? req.ip}` };
+}
+
+// ---------- AI triage ----------
+
+const TRIAGE_OFF = "AI triage is off. Set AI_GATEWAY_API_KEY and TYPESAFE_AI_ENABLED=true.";
+
+export async function retriageAction(requestId: string): Promise<ActionState> {
+  await guard();
+  if (!triageEnabled()) return { ok: false, error: TRIAGE_OFF };
+  const req = await getRequest(requestId);
+  if (!req) return { ok: false, error: "Request not found." };
+  const insight = await triageRequest(req);
+  revalidatePath("/", "layout");
+  if (!insight || insight.status !== "ok") {
+    return { ok: false, error: isRateLimited(insight) ? "AI Gateway rate limit reached (free-tier credits). Try again in a few minutes." : (insight?.error ?? "Triage failed.") };
+  }
+  const kind = insight.kind ? TRIAGE_KINDS[insight.kind].label : "Request";
+  return { ok: true, message: `${kind} from ${sourceLabel(insight.source) ?? "an unknown sender"}` };
+}
+
+/** Triage the most recent requests that have never been triaged. */
+export async function triageBacklogAction(): Promise<ActionState> {
+  await guard();
+  if (!triageEnabled()) return { ok: false, error: TRIAGE_OFF };
+  const pending = await listUntriagedRequests(100);
+  if (!pending.length) return { ok: true, message: "Everything is already triaged." };
+  const { ok, rateLimited } = await triageMany(pending);
+  revalidatePath("/", "layout");
+  const limited = "AI Gateway rate limit reached; the rest will be triaged on a later run.";
+  if (ok === 0) return { ok: false, error: rateLimited ? limited : "Triage failed. Check the AI Gateway key and the server logs." };
+  return { ok: true, message: `Triaged ${ok} of ${pending.length} request${pending.length === 1 ? "" : "s"}${rateLimited ? `. ${limited}` : ""}` };
 }
 
 // ---------- routes ----------
