@@ -128,3 +128,112 @@
     @apply font-sans;
   }
 }
+/* ---------- laterhook additions ---------- */
+
+@layer base {
+  h1, h2, h3, h4 {
+    @apply font-heading tracking-tight;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 45%, transparent);
+  }
+}
+
+@utility font-heading {
+  font-family: var(--font-heading), var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer components {
+/* Hue-driven colour chips: set --h on the element. */
+.hue-chip {
+  --chip-bg: oklch(0.95 0.045 var(--h));
+  --chip-fg: oklch(0.42 0.14 var(--h));
+  --chip-border: oklch(0.86 0.08 var(--h));
+  background: var(--chip-bg);
+  color: var(--chip-fg);
+  border-color: var(--chip-border);
+}
+.dark .hue-chip {
+  --chip-bg: oklch(0.28 0.06 var(--h));
+  --chip-fg: oklch(0.86 0.13 var(--h));
+  --chip-border: oklch(0.4 0.09 var(--h));
+}
+.hue-dot {
+  background: oklch(0.7 0.19 var(--h));
+  box-shadow: 0 0 0 3px oklch(0.7 0.19 var(--h) / 0.2);
+}
+.dark .hue-dot {
+  background: oklch(0.8 0.19 var(--h));
+  box-shadow: 0 0 0 3px oklch(0.8 0.19 var(--h) / 0.22);
+}
+.hue-text {
+  color: oklch(0.5 0.17 var(--h));
+}
+.dark .hue-text {
+  color: oklch(0.82 0.16 var(--h));
+}
+.hue-bar {
+  background: oklch(0.7 0.19 var(--h));
+}
+.dark .hue-bar {
+  background: oklch(0.8 0.19 var(--h));
+}
+.hue-accent-border {
+  border-color: oklch(0.7 0.19 var(--h));
+}
+.dark .hue-accent-border {
+  border-color: oklch(0.8 0.19 var(--h));
+}
+}
+
+/* Code / JSON tokens */
+.tok-key { color: oklch(0.45 0.16 295); }
+.tok-str { color: oklch(0.5 0.14 145); }
+.tok-num { color: oklch(0.55 0.19 45); }
+.tok-bool { color: oklch(0.5 0.17 242); }
+.tok-null { color: oklch(0.55 0.02 240); font-style: italic; }
+.tok-punc { color: oklch(0.6 0.01 240); }
+.dark .tok-key { color: oklch(0.82 0.13 295); }
+.dark .tok-str { color: oklch(0.85 0.17 130); }
+.dark .tok-num { color: oklch(0.82 0.16 60); }
+.dark .tok-bool { color: oklch(0.8 0.13 242); }
+.dark .tok-null { color: oklch(0.7 0.02 240); }
+.dark .tok-punc { color: oklch(0.6 0.01 240); }
+
+.code-surface {
+  background: color-mix(in oklch, var(--muted) 60%, var(--background));
+}
+
+/* Subtle engineering-paper grid for empty areas */
+.grid-paper {
+  background-image:
+    linear-gradient(to right, color-mix(in oklch, var(--border) 70%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklch, var(--border) 70%, transparent) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+@keyframes lh-pulse {
+  0% { transform: scale(0.9); opacity: 0.9; }
+  70% { transform: scale(2.2); opacity: 0; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+.live-ping::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: lh-pulse 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes lh-flash {
+  from { background-color: color-mix(in oklch, var(--primary) 30%, transparent); }
+  to { background-color: transparent; }
+}
+.row-new {
+  animation: lh-flash 2.4s ease-out both;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
