@@ -33,6 +33,10 @@ export function FiltersBar({ endpoints, tags, showEndpoint = true }: { endpoints
     start(() => router.replace(`${pathname}${next.size ? `?${next}` : ""}`));
   };
 
+  const methodItems = { [ALL]: "Any method", ...Object.fromEntries(METHODS.map((m) => [m, m])) };
+  const endpointItems = { [ALL]: "All endpoints", ...Object.fromEntries(endpoints.map((ep) => [ep.slug, ep.name ?? ep.slug])) };
+  const tagItems = { [ALL]: "Any tag", ...Object.fromEntries(tags.map((t) => [t, t])) };
+
   const starred = params.get("starred") === "1";
   const unread = params.get("unread") === "1";
   const active = ["q", "method", "endpoint", "tag", "starred", "unread"].some((k) => params.get(k));
@@ -50,7 +54,7 @@ export function FiltersBar({ endpoints, tags, showEndpoint = true }: { endpoints
         <Input value={q} onChange={(e) => setQ(e.target.value)} onBlur={() => q !== (params.get("q") ?? "") && set({ q })} placeholder="Search body, path, headers…" className="h-9 pl-8 text-xs" />
       </form>
 
-      <Select value={params.get("method") ?? ALL} onValueChange={(v) => set({ method: v as string })}>
+      <Select items={methodItems} value={params.get("method") ?? ALL} onValueChange={(v) => set({ method: v as string })}>
         <SelectTrigger className="h-9 w-28 text-xs" size="sm">
           <SelectValue placeholder="Method" />
         </SelectTrigger>
@@ -65,7 +69,7 @@ export function FiltersBar({ endpoints, tags, showEndpoint = true }: { endpoints
       </Select>
 
       {showEndpoint && (
-        <Select value={params.get("endpoint") ?? ALL} onValueChange={(v) => set({ endpoint: v as string })}>
+        <Select items={endpointItems} value={params.get("endpoint") ?? ALL} onValueChange={(v) => set({ endpoint: v as string })}>
           <SelectTrigger className="h-9 w-44 text-xs" size="sm">
             <SelectValue placeholder="Endpoint" />
           </SelectTrigger>
@@ -84,7 +88,7 @@ export function FiltersBar({ endpoints, tags, showEndpoint = true }: { endpoints
       )}
 
       {tags.length > 0 && (
-        <Select value={params.get("tag") ?? ALL} onValueChange={(v) => set({ tag: v as string })}>
+        <Select items={tagItems} value={params.get("tag") ?? ALL} onValueChange={(v) => set({ tag: v as string })}>
           <SelectTrigger className="h-9 w-36 text-xs" size="sm">
             <SelectValue placeholder="Tag" />
           </SelectTrigger>

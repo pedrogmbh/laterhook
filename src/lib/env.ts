@@ -20,17 +20,29 @@ function required(name: string): string {
 
 export type DatabaseDriver = "d1" | "sqlite";
 
+/**
+ * D1 credentials. The LATERHOOK_D1_* names win over the generic CLOUDFLARE_*
+ * ones so a global CLOUDFLARE_API_TOKEN exported by a shell profile (common
+ * for wrangler users) can't silently shadow the project's token.
+ */
+function d1Var(specific: string, generic: string): string | undefined {
+  return optional(specific) ?? optional(generic);
+}
+const d1AccountId = () => d1Var("LATERHOOK_D1_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID");
+const d1DatabaseId = () => d1Var("LATERHOOK_D1_DATABASE_ID", "CLOUDFLARE_D1_DATABASE_ID");
+const d1Token = () => d1Var("LATERHOOK_D1_TOKEN", "CLOUDFLARE_API_TOKEN");
+
+function requiredD1(specific: string, generic: string): string {
+  const v = d1Var(specific, generic);
+  if (!v) throw new Error(`Missing ${specific} (or ${generic}). See .env.example.`);
+  return v;
+}
+
 function resolveDriver(): DatabaseDriver {
   const explicit = optional("DATABASE_DRIVER")?.toLowerCase();
   if (explicit === "d1" || explicit === "sqlite") return explicit;
   // Infer: if Cloudflare credentials are present, use D1; otherwise local SQLite.
-  if (
-    optional("CLOUDFLARE_ACCOUNT_ID") &&
-    optional("CLOUDFLARE_D1_DATABASE_ID") &&
-    optional("CLOUDFLARE_API_TOKEN")
-  ) {
-    return "d1";
-  }
+  if (d1AccountId() && d1DatabaseId() && d1Token()) return "d1";
   return "sqlite";
 }
 
@@ -52,9 +64,9 @@ export const env = {
   },
   get d1(): { accountId: string; databaseId: string; apiToken: string } {
     return {
-      accountId: required("CLOUDFLARE_ACCOUNT_ID"),
-      databaseId: required("CLOUDFLARE_D1_DATABASE_ID"),
-      apiToken: required("CLOUDFLARE_API_TOKEN"),
+      accountId: requiredD1("LATERHOOK_D1_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID"),
+      databaseId: requiredD1("LATERHOOK_D1_DATABASE_ID", "CLOUDFLARE_D1_DATABASE_ID"),
+      apiToken: requiredD1("LATERHOOK_D1_TOKEN", "CLOUDFLARE_API_TOKEN"),
     };
   },
   get sqlitePath(): string {

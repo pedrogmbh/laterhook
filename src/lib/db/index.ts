@@ -15,7 +15,10 @@ const globalCache = globalThis as unknown as {
 
 function schemaKey(): string {
   let h = 0;
-  const text = SCHEMA_STATEMENTS.join(";") + "|" + env.databaseDriver;
+  const driver = env.databaseDriver;
+  // Credentials are part of the key (hashed, never stored) so an env change picks up a fresh connection.
+  const creds = driver === "d1" ? JSON.stringify(env.d1) : env.sqlitePath;
+  const text = SCHEMA_STATEMENTS.join(";") + "|" + driver + "|" + creds;
   for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) >>> 0;
   return h.toString(36);
 }

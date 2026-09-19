@@ -42,7 +42,13 @@ export function createD1Database(opts: {
     }
     if (!res.ok || !json.success) {
       const msg = json.errors?.map((e) => `${e.code}: ${e.message}`).join("; ") || `HTTP ${res.status}`;
-      throw new Error(`D1 query failed: ${msg}`);
+      const authProblem = res.status === 401 || res.status === 403 || json.errors?.some((e) => e.code === 7403 || e.code === 10000);
+      throw new Error(
+        `D1 query failed: ${msg}` +
+          (authProblem
+            ? ". Check the token/account: a CLOUDFLARE_API_TOKEN exported by your shell overrides .env files; set LATERHOOK_D1_TOKEN to pin this project's token."
+            : ""),
+      );
     }
     return json.result ?? [];
   }

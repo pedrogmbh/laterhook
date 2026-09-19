@@ -61,16 +61,37 @@ on the first request.
    | --- | --- |
    | `LATERHOOK_PASSWORD` | your dashboard password |
    | `LATERHOOK_SECRET` | a long random string (signs the session cookie) |
-   | `CLOUDFLARE_ACCOUNT_ID` | from step 2 |
-   | `CLOUDFLARE_D1_DATABASE_ID` | from step 1 |
-   | `CLOUDFLARE_API_TOKEN` | from step 2 |
+   | `LATERHOOK_D1_ACCOUNT_ID` | from step 2 |
+   | `LATERHOOK_D1_DATABASE_ID` | from step 1 |
+   | `LATERHOOK_D1_TOKEN` | from step 2 |
+   | `IP_API_KEY` | optional, ip-api.com Pro key for sender geolocation |
+
+   The generic `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_D1_DATABASE_ID` and
+   `CLOUDFLARE_API_TOKEN` names also work, but the `LATERHOOK_D1_*` ones take
+   precedence, which matters if your shell exports a global Cloudflare token.
 
 4. Deploy. The schema is created automatically on the first request. To
    verify credentials beforehand, run `bun run db:migrate` locally with the
    same variables in `.env.local`.
 
 `DATABASE_DRIVER` can be set explicitly to `d1` or `sqlite`; when unset it is
-`d1` if the three Cloudflare variables are present and `sqlite` otherwise.
+`d1` if the three D1 variables are present and `sqlite` otherwise.
+
+## Sender geolocation (optional)
+
+Set `IP_API_KEY` to an [ip-api.com](https://ip-api.com) Pro license key and
+every sender IP is looked up once and cached in the `ip_info` table (refreshed
+after `IP_API_CACHE_DAYS`, default 30). You then get:
+
+- an **Origin** card on each request: flag, city, region, country, ISP,
+  organisation, AS, timezone, reverse DNS, coordinates, and proxy/VPN,
+  datacenter and mobile flags;
+- a flag and place next to each row in the inbox and endpoint lists;
+- an **Origins, last 24h** breakdown by country on the overview;
+- IP search in the inbox search box.
+
+Private and reserved addresses are recognised locally and never sent to the
+API. Without a key nothing is looked up and the UI just shows the raw IP.
 
 ## Configuration
 
