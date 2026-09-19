@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-/** The laterhook mark: an L with a dot, matching icon.svg and the social images. */
+/** The Laterhook mark: an L with a dot, matching icon.svg and the social images. */
 export function LogoMark({ className }: { className?: string }) {
   return (
     <span className={cn("grid shrink-0 place-items-center bg-primary", className)} aria-hidden>

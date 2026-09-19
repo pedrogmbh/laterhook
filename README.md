@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/banner.png" alt="laterhook: catch every webhook now, sort it out later" width="100%">
+  <img src="docs/banner.png" alt="Laterhook: catch every webhook now, sort it out later" width="100%">
 </p>
 
-<h1 align="center">laterhook</h1>
+<h1 align="center">Laterhook</h1>
 
 <p align="center">
   <strong>Catch every webhook now. Sort it out later.</strong><br>
@@ -29,14 +29,14 @@
 <br>
 
 <p align="center">
-  <img src="docs/screenshots/overview.png" alt="laterhook overview: stats, 24h traffic, methods, origins by country and endpoint cards" width="100%">
+  <img src="docs/screenshots/overview.png" alt="Laterhook overview: stats, 24h traffic, methods, origins by country and endpoint cards" width="100%">
 </p>
 
 ## Why
 
 Every new product needs webhook URLs before it has anywhere to put them. Stripe wants one today, the payment provider tomorrow, GitHub next week. You end up with throwaway request bins, half-configured tunnels, and payloads you wish you had kept.
 
-laterhook flips the order. **Send first, decide later.**
+Laterhook flips the order. **Send first, decide later.**
 
 ```bash
 curl -X POST https://hooks.example.com/webhooks/my-product/stripe \
@@ -144,7 +144,7 @@ flowchart LR
 - **Routes** are tested against the whole path, e.g. `shop/stripe/live`, in priority order.
 - Forwarding runs **after the response is sent**, so senders always get a fast acknowledgement.
 - Every forward and replay becomes a **delivery** row: status, duration, response headers and body.
-- With AI triage on, each request is also judged **after the response**: one Jev call answers five typed questions (a Choice for sender, a Choice for kind, a Score for attention, and yes/no probabilities for failure and personal data) in about half a second. Header secrets are redacted before anything leaves laterhook. The event name (`invoice.paid`, `pull_request.opened`) is read by code, not guessed by the model.
+- With AI triage on, each request is also judged **after the response**: one Jev call answers five typed questions (a Choice for sender, a Choice for kind, a Score for attention, and yes/no probabilities for failure and personal data) in about half a second. Header secrets are redacted before anything leaves Laterhook. The event name (`invoice.paid`, `pull_request.opened`) is read by code, not guessed by the model.
 
 ## Routes make it permanent
 
@@ -170,6 +170,9 @@ All variables are documented in [`.env.example`](./.env.example).
 | `LATERHOOK_D1_ACCOUNT_ID` | prod | Cloudflare account id. `CLOUDFLARE_ACCOUNT_ID` also works. |
 | `LATERHOOK_D1_DATABASE_ID` | prod | D1 database id. `CLOUDFLARE_D1_DATABASE_ID` also works. |
 | `LATERHOOK_D1_TOKEN` | prod | API token with D1 edit rights. `CLOUDFLARE_API_TOKEN` also works. |
+| `LATERHOOK_D1_WORKER_URL` | no | URL of the optional `laterhook-d1` Worker. With the next variable, D1 is reached through it and reads use [read replicas](#read-replicas). |
+| `LATERHOOK_D1_WORKER_SECRET` | no | Shared secret for that Worker. |
+| `LATERHOOK_D1_READ_REPLICAS` | no | `false` pins every Worker query to the primary. Default `true`. |
 | `DATABASE_DRIVER` | no | `d1` or `sqlite`. Inferred from the variables above when unset. |
 | `SQLITE_PATH` | no | Local file for the SQLite driver. Default `.data/laterhook.db`. |
 | `IP_API_KEY` | no | [ip-api.com](https://ip-api.com) Pro key. Enables sender geolocation. |
@@ -184,6 +187,19 @@ All variables are documented in [`.env.example`](./.env.example).
 
 The `LATERHOOK_D1_*` names take precedence over the generic `CLOUDFLARE_*` ones, so a global Cloudflare token exported by your shell can't shadow the project's.
 
+### Read replicas
+
+D1 [read replication](https://developers.cloudflare.com/d1/best-practices/read-replication/) serves reads from a copy of the database close to the caller. It needs the Sessions API, which Cloudflare only offers on the Worker binding, not on the REST API. With plain REST credentials, every query goes to the primary even when replication is enabled.
+
+`worker/` holds a tiny optional Worker (`laterhook-d1`) that runs queries through the binding with `withSession()`. Laterhook sends it the latest bookmark it has seen, so a warm function always reads its own writes. It also skips the REST API's per-call overhead.
+
+1. Enable read replication on the database (dashboard → D1 → Settings), if it isn't on already.
+2. Put your database id in `worker/wrangler.jsonc` (and `account_id` if your login sees several accounts).
+3. `bun run worker:deploy`, then `bun run worker:secret` and paste a long random string.
+4. Set `LATERHOOK_D1_WORKER_URL` (the `*.workers.dev` URL) and `LATERHOOK_D1_WORKER_SECRET` in Vercel and `.env.local`.
+
+Leave both variables unset to keep using the REST API. Wrangler prefers `CLOUDFLARE_API_TOKEN` from your shell over `wrangler login`. If your shell exports one for another account, run the scripts with `env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID`.
+
 ## Development
 
 ```bash
@@ -191,6 +207,7 @@ bun dev             # dev server with hot reload
 bun run typecheck   # tsc --noEmit
 bun run build       # production build
 bun run db:migrate  # apply the schema to D1 and verify credentials
+bun run worker:dev  # run the optional laterhook-d1 Worker locally (local D1)
 ```
 
 Built with Next.js 16 (App Router, Node runtime), React 19, Tailwind CSS v4, shadcn/ui v4 on Base UI, Hugeicons, and Cloudflare D1 over its REST API. There is no ORM: one small driver interface, two drivers, all SQL in one file. See [`AGENTS.md`](./AGENTS.md) for the architecture tour.

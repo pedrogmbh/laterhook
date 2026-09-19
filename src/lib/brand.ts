@@ -1,6 +1,6 @@
 /** Shared copy and colours for metadata, icons and social images. */
 export const BRAND = {
-  name: "laterhook",
+  name: "Laterhook",
   tagline: "Catch every webhook now. Sort it out later.",
   description:
     "A self-hosted webhook inbox. Point any provider at /webhooks/<anything> with zero setup, then browse, search, tag, forward and replay every request from a fast, beautiful dashboard.",

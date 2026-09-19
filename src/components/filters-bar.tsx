@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, StarIcon, Cancel01Icon, SparklesIcon } from "@hugeicons/core-free-icons";
 import { EndpointDot } from "@/components/endpoint-dot";
+import { startNavigationProgress } from "@/components/navigation-progress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -44,7 +45,12 @@ export function FiltersBar({
       else next.set(k, v);
     }
     next.delete("before");
-    start(() => router.replace(`${pathname}${next.size ? `?${next}` : ""}`));
+    navigate(`${pathname}${next.size ? `?${next}` : ""}`);
+  };
+
+  const navigate = (href: string) => {
+    startNavigationProgress(href);
+    start(() => router.replace(href));
   };
 
   const methodItems = { [ALL]: "Any method", ...Object.fromEntries(METHODS.map((m) => [m, m])) };
@@ -155,7 +161,7 @@ export function FiltersBar({
         </Button>
       )}
       {active && (
-        <Button type="button" variant="ghost" size="sm" onClick={() => start(() => router.replace(pathname))}>
+        <Button type="button" variant="ghost" size="sm" onClick={() => navigate(pathname)}>
           <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} data-icon="inline-start" />
           Clear
         </Button>

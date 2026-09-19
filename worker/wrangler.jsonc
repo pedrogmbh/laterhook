@@ -1,0 +1,18 @@
+// laterhook-d1: optional D1 gateway Worker (see worker/src/index.ts and the README).
+// Deploy:  bun run worker:deploy        Secret:  bun run worker:secret
+{
+  "name": "laterhook-d1",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  // Pin the account if your login can see several (or your shell exports another CLOUDFLARE_ACCOUNT_ID).
+  // "account_id": "<your-account-id>",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      // The same database Laterhook uses: LATERHOOK_D1_DATABASE_ID in .env.local.
+      "database_id": "<your-d1-database-id>",
+      "database_name": "laterhook"
+    }
+  ],
+  "observability": { "enabled": true }
+}

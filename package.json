@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "db:migrate": "bun --env-file=.env.local --env-file=.env scripts/migrate.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "worker:dev": "bunx wrangler@4 dev -c worker/wrangler.jsonc",
+    "worker:deploy": "bunx wrangler@4 deploy -c worker/wrangler.jsonc",
+    "worker:secret": "bunx wrangler@4 secret put LATERHOOK_D1_WORKER_SECRET -c worker/wrangler.jsonc"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

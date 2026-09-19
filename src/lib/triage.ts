@@ -39,7 +39,7 @@ function model() {
 
 /** Platform/proxy headers say nothing about the sender. */
 const INFRA_HEADER = /^(x-vercel-|x-forwarded-|forwarded$|x-real-ip$|x-matched-path$|cf-|cdn-loop$|x-invoke-|host$|connection$|content-length$|accept-encoding$|via$|traceparent$|tracestate$|baggage$|sentry-trace$)/i;
-/** Credentials never leave laterhook; the header *name* is kept because it identifies senders (stripe-signature, x-hub-signature-256…). */
+/** Credentials never leave Laterhook; the header *name* is kept because it identifies senders (stripe-signature, x-hub-signature-256…). */
 const SECRET_HEADER = /(authorization|cookie|signature|token|secret|api-?key|password|-key$|^x-hook-)/i;
 
 function headersForState(headers: Record<string, string>): Record<string, string> {

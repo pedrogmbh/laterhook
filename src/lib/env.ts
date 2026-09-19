@@ -1,5 +1,5 @@
 /**
- * Central place for every environment variable laterhook reads.
+ * Central place for every environment variable Laterhook reads.
  * Nothing else in the codebase should touch `process.env` directly.
  */
 
@@ -38,10 +38,14 @@ function requiredD1(specific: string, generic: string): string {
   return v;
 }
 
+const d1WorkerUrl = () => optional("LATERHOOK_D1_WORKER_URL");
+const d1WorkerSecret = () => optional("LATERHOOK_D1_WORKER_SECRET");
+
 function resolveDriver(): DatabaseDriver {
   const explicit = optional("DATABASE_DRIVER")?.toLowerCase();
   if (explicit === "d1" || explicit === "sqlite") return explicit;
-  // Infer: if Cloudflare credentials are present, use D1; otherwise local SQLite.
+  // Infer: if the D1 Worker or Cloudflare credentials are configured, use D1; otherwise local SQLite.
+  if (d1WorkerUrl() && d1WorkerSecret()) return "d1";
   if (d1AccountId() && d1DatabaseId() && d1Token()) return "d1";
   return "sqlite";
 }
@@ -68,6 +72,18 @@ export const env = {
       databaseId: requiredD1("LATERHOOK_D1_DATABASE_ID", "CLOUDFLARE_D1_DATABASE_ID"),
       apiToken: requiredD1("LATERHOOK_D1_TOKEN", "CLOUDFLARE_API_TOKEN"),
     };
+  },
+  /**
+   * Optional `laterhook-d1` Worker (see worker/). When both vars are set, D1 is
+   * reached through it instead of the REST API, which enables read replicas.
+   */
+  get d1Worker(): { url: string; secret: string; readReplicas: boolean } | undefined {
+    const url = d1WorkerUrl();
+    const secret = d1WorkerSecret();
+    if (!url || !secret) return undefined;
+    // Replicas are on by default; "false"/"0"/"off" pins every query to the primary.
+    const readReplicas = !/^(false|0|off|no)$/i.test(optional("LATERHOOK_D1_READ_REPLICAS") ?? "true");
+    return { url, secret, readReplicas };
   },
   get sqlitePath(): string {
     return optional("SQLITE_PATH") ?? ".data/laterhook.db";

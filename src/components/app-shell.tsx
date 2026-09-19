@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { DashboardSquare01Icon, InboxIcon, StarIcon, Logout03Icon, Link04Icon, Route01Icon } from "@hugeicons/core-free-icons";
@@ -9,6 +10,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/nav-link";
 import { LogoMark } from "@/components/logo";
+import { NavigationProgress } from "@/components/navigation-progress";
 import type { Endpoint } from "@/lib/types";
 
 export function AppShell({
@@ -40,6 +42,9 @@ export function AppShell({
 
   return (
     <div className="flex min-h-full flex-1 flex-col md:flex-row">
+      <Suspense>
+        <NavigationProgress />
+      </Suspense>
       {/* Sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground md:sticky md:top-0 md:flex md:h-screen">
         <div className="flex items-center justify-between border-b px-5 py-4">
@@ -121,7 +126,7 @@ function Brand() {
   return (
     <Link href="/" className="group flex items-center gap-2">
       <LogoMark className="size-6" />
-      <span className="font-heading text-sm font-bold tracking-[0.2em] uppercase">laterhook</span>
+      <span className="font-heading text-sm font-bold tracking-[0.2em] uppercase">Laterhook</span>
     </Link>
   );
 }
